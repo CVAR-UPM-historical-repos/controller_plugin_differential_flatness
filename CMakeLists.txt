@@ -20,6 +20,7 @@ find_package(aerostack2_core REQUIRED)
 find_package(aerostack2_msgs REQUIRED)
 find_package(as2_control_command_handlers REQUIRED)
 find_package(std_srvs REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 
 # uncomment the following section in order to fill in
@@ -31,6 +32,7 @@ set(SOURCE_CPP_FILES
 
 include_directories(
   include
+  ${EIGEN3_INCLUDE_DIRS}
 )
 
 add_executable(${PROJECT_NAME}_node src/main_nodes.cpp ${SOURCE_CPP_FILES} ${HEADER_HPP_FILES})
