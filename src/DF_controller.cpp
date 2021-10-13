@@ -62,7 +62,6 @@ PD_controller::PD_controller()
 
 }
 
-
 void PD_controller::setup(){
 
     #if LINEARIZATION == 1
@@ -105,7 +104,7 @@ void PD_controller::computeActions(){
     Vector3d F_des;
     Vector3d e_p = r - r_t;
 
-    std::cout <<"Position error: \n" <<e_p << std::endl;
+    // std::cout <<"Position error: \n" <<e_p << std::endl;
 
     Vector3d e_v = rdot - rdot_t;
     
@@ -127,6 +126,9 @@ void PD_controller::computeActions(){
 
     Vector3d zb_des = F_des.normalized();
     Vector3d xc_des(cos(refs_[3][0]),sin(refs_[3][0]),0);
+    //FIXME: THIS IS A TEST
+    
+    // Vector3d xc_des(cos(state_.rot[2]),sin(state_.rot[2]),0);
     Vector3d yb_des = zb_des.cross(xc_des).normalized();
     Vector3d xb_des = yb_des.cross(zb_des).normalized();
 
@@ -152,7 +154,11 @@ void PD_controller::computeActions(){
     u2[0] = outputs(0); // ROLL
     u2[1] = outputs(1); // PITCH
     u2[2] = outputs(2); // YAW
-   
+
+    std::cout << "roll: " << u2[0] << std::endl;
+    std::cout << "pitch: " << u2[1] << std::endl;
+    std::cout << "yaw: " << u2[2] << std::endl;
+
     
 #elif LINEARIZATION == 1
 
@@ -228,7 +234,10 @@ void PD_controller::publishActions(){
 
     // TODO: Check sign
     // acro_controller.sendAngleRatesWithThrust(u2[0],u2[1],u2[2],u1);
-    acro_controller.sendAngleRatesWithThrust(0.0, u2[0],-u2[2],u1);
+    // acro_controller.sendAngleRatesWithThrust(u2[1],u2[0],-u2[2],u1);
+    
+    acro_controller.sendAngleRatesWithThrust(u2[0],-u2[1],-u2[2],u1);
+
 
     // thrust_msg.thrust= u1;
     // speeds_msg.twist.angular.x = -u2[1];
