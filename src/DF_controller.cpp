@@ -76,7 +76,7 @@ void PD_controller::setup(){
     Kp_ang_ << 5.5,5.5,5.0;    
     
     // Ki_lin_ << 0.0001,0.0001,0.00001;
-    Ki_lin_ << 0.001,0.001,0.001;
+    Ki_lin_ << 0.01,0.01,0.01;
     accum_error_ << 0,0,0;
     
     flags_.traj_generated = false;
@@ -104,7 +104,7 @@ void PD_controller::computeActions(){
     Vector3d F_des;
     Vector3d e_p = r - r_t;
 
-    // std::cout <<"Position error: \n" <<e_p << std::endl;
+    std::cout <<"Position error: \n" <<e_p << std::endl;
 
     Vector3d e_v = rdot - rdot_t;
     
@@ -114,6 +114,14 @@ void PD_controller::computeActions(){
     Eigen::Matrix3d Ki_lin_mat = Ki_lin_.asDiagonal(); 
 
     // antiwindup
+    // if (e_p.norm() > 0.01) {
+    
+    accum_error_ += e_p;
+
+    // }
+    // else {
+        // accum_error_ = Vector3d::Zero();
+    // }
 
     float antiwindup_cte = 1.0f;
     for (short j = 0; j<3;j++){
@@ -126,7 +134,6 @@ void PD_controller::computeActions(){
 
     Vector3d zb_des = F_des.normalized();
     Vector3d xc_des(cos(refs_[3][0]),sin(refs_[3][0]),0);
-    //FIXME: THIS IS A TEST
     
     // Vector3d xc_des(cos(state_.rot[2]),sin(state_.rot[2]),0);
     Vector3d yb_des = zb_des.cross(xc_des).normalized();
@@ -155,9 +162,9 @@ void PD_controller::computeActions(){
     u2[1] = outputs(1); // PITCH
     u2[2] = outputs(2); // YAW
 
-    std::cout << "roll: " << u2[0] << std::endl;
-    std::cout << "pitch: " << u2[1] << std::endl;
-    std::cout << "yaw: " << u2[2] << std::endl;
+    // std::cout << "roll: " << u2[0] << std::endl;
+    // std::cout << "pitch: " << u2[1] << std::endl;
+    // std::cout << "yaw: " << u2[2] << std::endl;
 
     
 #elif LINEARIZATION == 1
@@ -286,6 +293,7 @@ void PD_controller::run(){
         followTrajectory();
     }
     else{
+        
         //TODO: CHECK THIS
         // hover();
     }
