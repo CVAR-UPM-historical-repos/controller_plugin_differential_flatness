@@ -41,14 +41,14 @@ PD_controller::PD_controller()
 
     //TODO: read drone config files to read mass parameters
     sub_odom_ = this->create_subscription<nav_msgs::msg::Odometry>(
-        this->generate_topic_name("self_localization/odom"), 1,
+        this->generate_global_name("self_localization/odom"), 1,
         std::bind(&PD_controller::CallbackOdomTopic, this, std::placeholders::_1));
     sub_traj_ = this->create_subscription<trajectory_msgs::msg::JointTrajectoryPoint>(
-        this->generate_topic_name("motion_reference/trajectory"), 1,
+        this->generate_global_name("motion_reference/trajectory"), 1,
         std::bind(&PD_controller::CallbackTrajTopic, this, std::placeholders::_1));
     
     sub_imu_ = this->create_subscription<sensor_msgs::msg::Imu>(
-        this->generate_topic_name("platform/imu"), 1,
+        this->generate_global_name("platform/imu"), 1,
         std::bind(&PD_controller::CallbackImuTopic, this, std::placeholders::_1));
     
     this->setup();
@@ -235,8 +235,8 @@ void PD_controller::computeActions(){
 };
 
 void PD_controller::publishActions(){
-    static aerostack2_msgs::msg::Thrust thrust_msg;
-    static geometry_msgs::msg::TwistStamped speeds_msg;
+    // static aerostack2_msgs::msg::Thrust thrust_msg;
+    // static geometry_msgs::msg::TwistStamped speeds_msg;
     static aerostack2::controlCommandsHandlers::AcroControl acro_controller(this);
 
     // TODO: Check sign
