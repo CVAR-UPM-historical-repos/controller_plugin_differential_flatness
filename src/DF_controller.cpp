@@ -36,7 +36,7 @@ template <typename T> void SetZeros(Eigen::DenseBase<T>& m);
 
 
 PD_controller::PD_controller()
-    :aerostack2::Node("differential_flatness_controller")
+    :as2::Node("differential_flatness_controller")
 {
 
     //TODO: read drone config files to read mass parameters
@@ -235,9 +235,9 @@ void PD_controller::computeActions(){
 };
 
 void PD_controller::publishActions(){
-    // static aerostack2_msgs::msg::Thrust thrust_msg;
+    // static as2_msgs::msg::Thrust thrust_msg;
     // static geometry_msgs::msg::TwistStamped speeds_msg;
-    static aerostack2::controlCommandsHandlers::AcroControl acro_controller(this);
+    static as2::controlCommandsHandlers::AcroControl acro_controller(this);
 
     // TODO: Check sign
     // acro_controller.sendAngleRatesWithThrust(u2[0],u2[1],u2[2],u1);

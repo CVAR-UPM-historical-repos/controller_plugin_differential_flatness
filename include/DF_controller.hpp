@@ -42,7 +42,7 @@
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/twist_stamped.hpp"
 #include "sensor_msgs/msg/imu.hpp"
-#include "aerostack2_msgs/msg/thrust.hpp"
+#include "as2_msgs/msg/thrust.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include <memory>
 
@@ -59,7 +59,7 @@
 // #include <differential_flatness_controller/ControllerConfig.h>
 // #include <dynamic_reconfigure/server.h>
 
-#include "aerostack2_core/node.hpp"
+#include "as2_core/node.hpp"
 #include "as2_control_command_handlers/acro_control.hpp"
 
 // definitions 
@@ -92,7 +92,7 @@ struct UAV_state{
 };
 
 
-class PD_controller : public aerostack2::Node{
+class PD_controller : public as2::Node{
 private:
 
     std::string n_space_;
@@ -111,7 +111,7 @@ private:
     rclcpp::Subscription<trajectory_msgs::msg::JointTrajectoryPoint>::SharedPtr sub_traj_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sub_odom_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr sub_imu_;
-    // rclcpp::Publisher<aerostack2_msgs::msg::Thrust>::SharedPtr pub_thrust_;
+    // rclcpp::Publisher<as2_msgs::msg::Thrust>::SharedPtr pub_thrust_;
     // rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr pub_speeds_;
     
     UAV_state state_;

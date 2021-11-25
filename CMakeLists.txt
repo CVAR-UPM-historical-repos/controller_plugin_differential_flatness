@@ -16,8 +16,8 @@ find_package(geometry_msgs REQUIRED)
 find_package(trajectory_msgs REQUIRED)
 
 find_package(nav_msgs REQUIRED)
-find_package(aerostack2_core REQUIRED)
-find_package(aerostack2_msgs REQUIRED)
+find_package(as2_core REQUIRED)
+find_package(as2_msgs REQUIRED)
 find_package(as2_control_command_handlers REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(Eigen3 REQUIRED)
@@ -42,8 +42,8 @@ ament_target_dependencies(${PROJECT_NAME}_node
   std_msgs
   std_srvs
   nav_msgs
-  aerostack2_core
-  aerostack2_msgs
+  as2_core
+  as2_msgs
   geometry_msgs
   trajectory_msgs
   as2_control_command_handlers
