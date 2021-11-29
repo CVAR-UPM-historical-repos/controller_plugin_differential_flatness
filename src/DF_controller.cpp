@@ -144,13 +144,6 @@ void PD_controller::CallbackTrajTopic(
 {
   auto & traj_msg = *(msg.get());
   flags_.traj_generated = true;
-
-  // TODO: Remove this is only for debugging
-  static bool last_state = flags_.traj_generated;
-  if (last_state != flags_.traj_generated) {
-      last_state = flags_.traj_generated;
-      RCLCPP_INFO(this->get_logger(), "Trajectory received = %d", flags_.traj_generated);
-  }
   
   for (int i = 0; i < 4; i++) {
     refs_[i][0] = traj_msg.positions[i];
