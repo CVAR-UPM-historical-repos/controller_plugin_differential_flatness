@@ -31,136 +31,106 @@
 #ifndef __PD_CONTROLLER_H__
 #define __PD_CONTROLLER_H__
 
-//  ros
-
-
-// #include "ros/ros.h"
-#include "rclcpp/rclcpp.hpp"
-
-#include "trajectory_msgs/msg/joint_trajectory_point.hpp"
-#include "nav_msgs/msg/odometry.hpp"
-#include "geometry_msgs/msg/pose_stamped.hpp"
-#include "geometry_msgs/msg/twist_stamped.hpp"
-#include "sensor_msgs/msg/imu.hpp"
-#include "as2_msgs/msg/thrust.hpp"
-#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
+// Std libraries
+#include <array>
+#include <cmath>
+#include <iostream>
 #include <memory>
+#include <vector>
 
 // Eigen
 #include <Eigen/Dense>
 
-// Std libraries
-#include <iostream>
-#include <vector>
-#include <math.h>
-#include <array>
-
-// TODO:dynamic reconfigure
-// #include <differential_flatness_controller/ControllerConfig.h>
-// #include <dynamic_reconfigure/server.h>
-
-#include "as2_core/node.hpp"
 #include "as2_control_command_handlers/acro_control.hpp"
-
-// definitions 
-
-#define DEBUG 0
-#define LINEARIZATION 0
+#include "as2_core/node.hpp"
+#include "as2_msgs/msg/thrust.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "geometry_msgs/msg/twist_stamped.hpp"
+#include "nav_msgs/msg/odometry.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "sensor_msgs/msg/imu.hpp"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
+#include "trajectory_msgs/msg/joint_trajectory_point.hpp"
 
 // FIXME: read this from the parameter server
 
-
 #define DRONE_MASS 1.5
-// #define DYNAMIC_TUNING
-#define SATURATE_YAW_ERROR 1 
+#define SATURATE_YAW_ERROR 1
 
 using Vector3d = Eigen::Vector3d;
 
-
-struct Control_flags{
-    bool traj_generated;
-    bool hover_position;
-    bool state_received;
+struct Control_flags
+{
+  bool traj_generated;
+  bool hover_position;
+  bool state_received;
 };
 
-struct UAV_state{
-    // State composed of s = [pose ,d_pose]'
-    float pos[3];
-    float rot[3];
-    float vel[3];
-    float omega[3];
+struct UAV_state
+{
+  // State composed of s = [pose ,d_pose]'
+  Vector3d pos;
+  Vector3d rot;
+  Vector3d vel;
+  Vector3d omega;
 };
 
-
-class PD_controller : public as2::Node{
+class PD_controller : public as2::Node
+{
 private:
+  std::string n_space_;
+  std::string self_localization_pose_topic_;
+  std::string self_localization_speed_topic_;
+  std::string sensor_measurement_imu_topic_;
+  std::string motion_reference_traj_topic_;
 
-    std::string n_space_;
-    std::string self_localization_pose_topic_;
-    std::string self_localization_speed_topic_;
-    std::string sensor_measurement_imu_topic_;
-    std::string motion_reference_traj_topic_;
-    
-    std::string actuator_command_thrust_topic_;
-    std::string actuator_command_speed_topic_;
+  std::string actuator_command_thrust_topic_;
+  std::string actuator_command_speed_topic_;
 
-    float mass = 1.0f;    
+  float mass = 1.0f;
 
-    
-    
-    rclcpp::Subscription<trajectory_msgs::msg::JointTrajectoryPoint>::SharedPtr sub_traj_;
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sub_odom_;
-    rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr sub_imu_;
-    // rclcpp::Publisher<as2_msgs::msg::Thrust>::SharedPtr pub_thrust_;
-    // rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr pub_speeds_;
-    
-    UAV_state state_;
-    Control_flags flags_;
-    
-    // controller stuff
-    const float g = 9.81;
-    const float angle_limit = 1.0; // pi/4 < value < pi/2 
+  rclcpp::Subscription<trajectory_msgs::msg::JointTrajectoryPoint>::SharedPtr sub_traj_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sub_odom_;
+  rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr sub_imu_;
 
-    
-    Eigen::Vector3d Kp_lin_;
-    Eigen::Vector3d Kd_lin_;
-    Eigen::Vector3d Kp_ang_;
-    Eigen::Vector3d Ki_lin_;
-    Eigen::Vector3d accum_error_;
+  UAV_state state_;
+  Control_flags flags_;
 
-    Eigen::Matrix3d Rot_matrix;
-    
-    float u1 = 0.0;
-    float u2[3] = {0.0,0.0,0.0};
+  // controller stuff
+  const float g = 9.81;
 
-    std::array<std::array<float,3>,4> refs_;
+  Eigen::Vector3d Kp_lin_;
+  Eigen::Vector3d Kd_lin_;
+  Eigen::Vector3d Kp_ang_;
+  Eigen::Vector3d Ki_lin_;
+  Eigen::Vector3d accum_error_;
+
+  Eigen::Matrix3d Rot_matrix;
+
+  float u1 = 0.0;
+  float u2[3] = {0.0, 0.0, 0.0};
+
+  std::array<std::array<float, 3>, 4> refs_;
 
 public:
-    PD_controller();
-    ~PD_controller(){};
+  PD_controller();
+  ~PD_controller(){};
 
-    void updateErrors();
-    void computeActions();
-    void publishActions();
+  // void updateErrors();
+  void computeActions();
+  void publishActions();
 
-    //TODO: CHECK DYNAMIC_TUNING ROS2
-    #ifdef DYNAMIC_TUNING
-    void parametersCallback(pd_controller::ControllerConfig &config, uint32_t level);
-    #endif
+  void setup();
+  void run();
 
-    void setup();
-    void run();
+  void CallbackOdomTopic(const nav_msgs::msg::Odometry::SharedPtr odom_msg);
 
 private:
+  void followTrajectory();
+  void hover();
 
-    void followTrajectory();
-    void hover();
-    
-    void CallbackTrajTopic(const trajectory_msgs::msg::JointTrajectoryPoint::SharedPtr traj_msg);
-    void CallbackOdomTopic(const nav_msgs::msg::Odometry::SharedPtr odom_msg);
-    void CallbackImuTopic(const sensor_msgs::msg::Imu::SharedPtr imu_msg);
-
-
+  void CallbackTrajTopic(const trajectory_msgs::msg::JointTrajectoryPoint::SharedPtr traj_msg);
+  void CallbackImuTopic(const sensor_msgs::msg::Imu::SharedPtr imu_msg);
 };
 
 #endif

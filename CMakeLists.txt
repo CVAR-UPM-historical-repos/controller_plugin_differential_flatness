@@ -2,25 +2,31 @@ cmake_minimum_required(VERSION 3.5)
 set(PROJECT_NAME differential_flatness_based_controller)
 project(${PROJECT_NAME})
 
-# Default to C++14
+# Default to C++17
 if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 14)
+  set(CMAKE_CXX_STANDARD 17)
 endif()
 
 # find dependencies
-find_package(ament_cmake REQUIRED)
-find_package(rclcpp REQUIRED)
-find_package(std_msgs REQUIRED)
-find_package(sensor_msgs REQUIRED)
-find_package(geometry_msgs REQUIRED)
-find_package(trajectory_msgs REQUIRED)
 
-find_package(nav_msgs REQUIRED)
-find_package(as2_core REQUIRED)
-find_package(as2_msgs REQUIRED)
-find_package(as2_control_command_handlers REQUIRED)
-find_package(std_srvs REQUIRED)
-find_package(Eigen3 REQUIRED)
+set(PROJECT_DEPENDENCIES
+  ament_cmake
+  rclcpp
+  std_msgs
+  sensor_msgs
+  geometry_msgs
+  trajectory_msgs
+  nav_msgs
+  as2_core
+  as2_msgs
+  as2_control_command_handlers
+  std_srvs
+  Eigen3
+)
+
+foreach(DEPENDENCY ${PROJECT_DEPENDENCIES})
+  find_package(${DEPENDENCY} REQUIRED)
+endforeach()
 
 
 # uncomment the following section in order to fill in
@@ -35,29 +41,18 @@ include_directories(
   ${EIGEN3_INCLUDE_DIRS}
 )
 
-add_executable(${PROJECT_NAME}_node src/main_nodes.cpp ${SOURCE_CPP_FILES} ${HEADER_HPP_FILES})
-ament_target_dependencies(${PROJECT_NAME}_node 
-  rclcpp 
-  sensor_msgs 
-  std_msgs
-  std_srvs
-  nav_msgs
-  as2_core
-  as2_msgs
-  geometry_msgs
-  trajectory_msgs
-  as2_control_command_handlers
-)
+add_executable(${PROJECT_NAME}_node src/main_nodes.cpp ${SOURCE_CPP_FILES})
+ament_target_dependencies(${PROJECT_NAME}_node ${PROJECT_DEPENDENCIES})
 
 
 if(BUILD_TESTING)
-  find_package(ament_cmake_cpplint REQUIRED)
   find_package(ament_cmake_cppcheck REQUIRED)
   find_package(ament_cmake_clang_format REQUIRED)
-  
-  ament_cpplint(src/ include/)
+
   ament_cppcheck(src/ include/)
   ament_clang_format(src/ include/)
+
+  include(tests/profiling_cmake.txt)
 
 endif()
 
