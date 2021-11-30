@@ -126,8 +126,6 @@ public:
   void CallbackOdomTopic(const nav_msgs::msg::Odometry::SharedPtr odom_msg);
 
 private:
-  void followTrajectory();
-  void hover();
 
   void CallbackTrajTopic(const trajectory_msgs::msg::JointTrajectoryPoint::SharedPtr traj_msg);
   void CallbackImuTopic(const sensor_msgs::msg::Imu::SharedPtr imu_msg);
