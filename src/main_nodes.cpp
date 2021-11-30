@@ -37,14 +37,7 @@ int main(int argc, char * argv[])
 
   auto node = std::make_shared<PD_controller>();
   node->setup();
-
-  rclcpp::Rate r(100);
-  while (rclcpp::ok()) {
-    node->run();
-    rclcpp::spin_some(node);
-    r.sleep();
-  }
-
+  node->spinLoop(100,std::bind(&PD_controller::run, node));
   rclcpp::shutdown();
   return 0;
 }
