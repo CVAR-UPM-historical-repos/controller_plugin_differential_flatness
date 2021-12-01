@@ -30,14 +30,16 @@
 
 #include "DF_controller.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "as2_core/core_functions.hpp"
 
 int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
 
   auto node = std::make_shared<PD_controller>();
+  node->preset_loop_frequency(100);
   node->setup();
-  node->spinLoop(100,std::bind(&PD_controller::run, node));
+  as2::spinLoop(node,std::bind(&PD_controller::run, node));
   rclcpp::shutdown();
   return 0;
 }
