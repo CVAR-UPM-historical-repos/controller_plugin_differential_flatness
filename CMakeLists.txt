@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.5)
 set(PROJECT_NAME differential_flatness_based_controller)
 project(${PROJECT_NAME})
 
+# set release mode
+set(CMAKE_BUILD_TYPE Release)
+
 # Default to C++17
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 17)
