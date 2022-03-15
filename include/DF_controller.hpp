@@ -89,7 +89,7 @@ private:
   std::string actuator_command_thrust_topic_;
   std::string actuator_command_speed_topic_;
 
-  float mass = 1.0f;
+  float mass = 1.5f;
 
   rclcpp::Subscription<trajectory_msgs::msg::JointTrajectoryPoint>::SharedPtr sub_traj_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sub_odom_;

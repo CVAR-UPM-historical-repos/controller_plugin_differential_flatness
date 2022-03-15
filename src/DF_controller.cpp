@@ -50,9 +50,9 @@ void PD_controller::setup()
   RCLCPP_INFO(this->get_logger(), "uav_mass = %f", mass);
 
 #if SPEED_REFERENCE == 1
-  Kp_lin_ << 3.0, 3.0, 3.0;
-  Kd_lin_ << 1.0, 1.0, 1.0;
-  Ki_lin_ << 0.01, 0.01, 0.01;
+  Kp_lin_ << 3.0, 3.0, 4.0;
+  Kd_lin_ << 0.0, 0.0, 0.0;
+  Ki_lin_ << 0.00, 0.00, 0.00;
   accum_error_ << 0, 0, 0;
 #else
   Kp_lin_ << 5.0, 5.0, 6.0;
@@ -118,10 +118,9 @@ Vector3d PD_controller::computeForceDesiredBySpeed()
   Vector3d dvel_error_contribution;
   Vector3d accum_vel_error_contribution;
 
-
   // compute vel error contribution
-  Vector3d e_v = rdot - rdot_t;
-  vel_error_contribution = -Kp_lin_mat * e_v;
+  Vector3d e_v = rdot_t - rdot;
+  vel_error_contribution = Kp_lin_mat * e_v;
 
   // compute dt
   static rclcpp::Time last_time = this->now();
@@ -132,12 +131,13 @@ Vector3d PD_controller::computeForceDesiredBySpeed()
   static Vector3d last_e_v = e_v;
   const double alpha = 0.1;
   static Vector3d filtered_d_e_v = e_v;
-  Vector3d inc_e_v = (e_v - last_e_v);
 
+  Vector3d inc_e_v = (e_v - last_e_v);
   filtered_d_e_v = alpha * inc_e_v + (1 - alpha) * filtered_d_e_v;
+  last_e_v = e_v;
 
   // compute dvel error contribution
-  dvel_error_contribution = -Kd_lin_mat * filtered_d_e_v/ dt;
+  dvel_error_contribution = Kd_lin_mat * filtered_d_e_v/ dt;
  
   // compute accum_error
   accum_error_ += e_v * dt;
@@ -151,14 +151,13 @@ Vector3d PD_controller::computeForceDesiredBySpeed()
   }
 
   // compute accum_vel_error_contribution
-  accum_vel_error_contribution =  - Ki_lin_mat * accum_error_;
+  accum_vel_error_contribution =  Ki_lin_mat * accum_error_;
 
   // compute a_des
-  Vector3d a_des = vel_error_contribution + dvel_error_contribution + accum_vel_error_contribution +
-                   gravitational_force;
+  Vector3d a_des = vel_error_contribution + dvel_error_contribution + accum_vel_error_contribution ;
 
   // compute F_des
-  Vector3d F_des = mass * a_des;
+  Vector3d F_des = mass * a_des + mass * gravitational_force;
 
   return F_des;
 }
