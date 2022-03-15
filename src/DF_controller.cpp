@@ -49,10 +49,17 @@ void PD_controller::setup()
   RCLCPP_INFO(this->get_logger(), "PD controller non-linearized");
   RCLCPP_INFO(this->get_logger(), "uav_mass = %f", mass);
 
+#if SPEED_REFERENCE == 1
+  Kp_lin_ << 3.0, 3.0, 3.0;
+  Kd_lin_ << 1.0, 1.0, 1.0;
+  Ki_lin_ << 0.01, 0.01, 0.01;
+  accum_error_ << 0, 0, 0;
+#else
   Kp_lin_ << 5.0, 5.0, 6.0;
   Kd_lin_ << 3.0, 3.0, 3.0;
   Ki_lin_ << 0.01, 0.01, 0.01;
   accum_error_ << 0, 0, 0;
+#endif
 
   Kp_ang_ << 5.5, 5.5, 5.0;
 
@@ -66,11 +73,10 @@ void PD_controller::setup()
   }
 }
 
-void PD_controller::computeActions()
+Vector3d PD_controller::computeForceDesiredByTraj()
 {
-  static Eigen::Matrix3d Kp_lin_mat = Kp_lin_.asDiagonal();
   static Eigen::Matrix3d Kd_lin_mat = Kd_lin_.asDiagonal();
-  static Eigen::Matrix3d Kp_ang_mat = Kp_ang_.asDiagonal();
+  static Eigen::Matrix3d Kp_lin_mat = Kp_lin_.asDiagonal();
   static Eigen::Matrix3d Ki_lin_mat = Ki_lin_.asDiagonal();
   const static Eigen::Vector3d gravitational_force(0, 0, mass * g);
 
@@ -94,8 +100,83 @@ void PD_controller::computeActions()
 
   Vector3d F_des = -Kp_lin_mat * e_p - Ki_lin_mat * accum_error_ - Kd_lin_mat * e_v +
                    gravitational_force + mass * rddot_t;
+  return F_des;
+
+}
+
+Vector3d PD_controller::computeForceDesiredBySpeed()
+{
+  static Eigen::Matrix3d Kd_lin_mat = Kd_lin_.asDiagonal();
+  static Eigen::Matrix3d Kp_lin_mat = Kp_lin_.asDiagonal();
+  static Eigen::Matrix3d Ki_lin_mat = Ki_lin_.asDiagonal();
+  const static Eigen::Vector3d gravitational_force(0, 0, mass * g);
+
+  Vector3d rdot(state_.vel[0], state_.vel[1], state_.vel[2]);
+  Vector3d rdot_t(refs_[0][1], refs_[1][1], refs_[2][1]);
+
+  Vector3d vel_error_contribution;
+  Vector3d dvel_error_contribution;
+  Vector3d accum_vel_error_contribution;
+
+
+  // compute vel error contribution
+  Vector3d e_v = rdot - rdot_t;
+  vel_error_contribution = -Kp_lin_mat * e_v;
+
+  // compute dt
+  static rclcpp::Time last_time = this->now();
+  rclcpp::Time current_time = this->now();
+  double dt = (current_time - last_time).nanoseconds() / 1e9;
+  last_time = current_time;
+
+  static Vector3d last_e_v = e_v;
+  const double alpha = 0.1;
+  static Vector3d filtered_d_e_v = e_v;
+  Vector3d inc_e_v = (e_v - last_e_v);
+
+  filtered_d_e_v = alpha * inc_e_v + (1 - alpha) * filtered_d_e_v;
+
+  // compute dvel error contribution
+  dvel_error_contribution = -Kd_lin_mat * filtered_d_e_v/ dt;
+ 
+  // compute accum_error
+  accum_error_ += e_v * dt;
+
+  // compute antiwindup
+  float antiwindup_cte = 1.0f;
+  for (short j = 0; j < 3; j++) {
+    float antiwindup_value = antiwindup_cte / Ki_lin_[j];
+    accum_error_[j] = (accum_error_[j] > antiwindup_value) ? antiwindup_value : accum_error_[j];
+    accum_error_[j] = (accum_error_[j] < -antiwindup_value) ? -antiwindup_value : accum_error_[j];
+  }
+
+  // compute accum_vel_error_contribution
+  accum_vel_error_contribution =  - Ki_lin_mat * accum_error_;
+
+  // compute a_des
+  Vector3d a_des = vel_error_contribution + dvel_error_contribution + accum_vel_error_contribution +
+                   gravitational_force;
+
+  // compute F_des
+  Vector3d F_des = mass * a_des;
+
+  return F_des;
+}
+
+
+void PD_controller::computeActions()
+{
+
+  static Eigen::Matrix3d Kp_ang_mat = Kp_ang_.asDiagonal();
+
+#if SPEED_REFERENCE == 1
+  Vector3d F_des = computeForceDesiredBySpeed();
+#else
+  Vector3d F_des = computeForceDesiredByTraj();
+#endif
 
   Vector3d zb_des = F_des.normalized();
+
   Vector3d xc_des(cos(refs_[3][0]), sin(refs_[3][0]), 0);
 
   // Vector3d xc_des(cos(state_.rot[2]),sin(state_.rot[2]),0);

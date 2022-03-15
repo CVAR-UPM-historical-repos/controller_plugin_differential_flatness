@@ -57,6 +57,8 @@
 #define DRONE_MASS 1.5
 #define SATURATE_YAW_ERROR 1
 
+#define SPEED_REFERENCE 1
+
 using Vector3d = Eigen::Vector3d;
 
 struct Control_flags
@@ -127,6 +129,8 @@ public:
 
 private:
 
+  Vector3d computeForceDesiredByTraj();
+  Vector3d computeForceDesiredBySpeed();
   void CallbackTrajTopic(const trajectory_msgs::msg::JointTrajectoryPoint::SharedPtr traj_msg);
   void CallbackImuTopic(const sensor_msgs::msg::Imu::SharedPtr imu_msg);
 };
