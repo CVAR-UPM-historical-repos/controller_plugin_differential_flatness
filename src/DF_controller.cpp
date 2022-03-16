@@ -29,9 +29,50 @@
  *******************************************************************************/
 
 #include "DF_controller.hpp"
+#include <rcl_interfaces/msg/detail/floating_point_range__struct.hpp>
 
-PD_controller::PD_controller() : as2::Node("differential_flatness_controller")
+PD_controller::PD_controller() : as2::Node("differential_flatness_controller",  rclcpp::NodeOptions()
+      .allow_undeclared_parameters(true)
+      .automatically_declare_parameters_from_overrides(true).start_parameter_services(true))
 {
+  // rcl_interfaces::msg::ParameterDescriptor a = this->describe_parameter("trajectory_following.test_x");
+  // a.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY;
+
+  // a.floating_point_range.clear();
+  // rcl_interfaces::msg::FloatingPointRange range_;
+  // range_.from_value = -1.0;
+  // range_.to_value = 1.0;
+  // range_.step = 0.1;
+  // a.floating_point_range.emplace_back(range_);
+  
+  // std::vector<double> default_value1 = {0.1,0.3,0.5,0.7,0.9};
+  // this->declare_parameter("trajectory_following.test_x",default_value1, a);
+
+  RCLCPP_INFO(this->get_logger(),
+      "Parameter blackboard node named '%s' ready, and serving '%zu' parameters already!",
+      this->get_name(), this->list_parameters(
+        {this->get_namespace()}, rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE).names.size());
+
+  // print all parameter_names
+  for (auto &parameter_name : this->list_parameters(
+        {}, rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE).names)
+  {
+    RCLCPP_INFO(this->get_logger(), "Parameter: %s", parameter_name.c_str());
+    if (this->get_parameter(parameter_name).get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE)
+    {
+      parameters_.emplace(parameter_name, this->get_parameter(parameter_name).as_double());
+    }
+  }
+
+  // print all parameters_ key, value
+  // for (auto &parameter : parameters_)
+  // {
+  //   RCLCPP_INFO(this->get_logger(), "Parameter: %s, value: %f", parameter.first.c_str(), parameter.second);
+  // }
+
+  static auto callback_handle_ = this->add_on_set_parameters_callback(
+    std::bind(&PD_controller::parametersCallback, this, std::placeholders::_1));
+
   //TODO: read drone config files to read mass parameters
   sub_odom_ = this->create_subscription<nav_msgs::msg::Odometry>(
     this->generate_global_name("self_localization/odom"), 1,
@@ -42,26 +83,30 @@ PD_controller::PD_controller() : as2::Node("differential_flatness_controller")
   sub_imu_ = this->create_subscription<sensor_msgs::msg::Imu>(
     this->generate_global_name("platform/imu"), 1,
     std::bind(&PD_controller::CallbackImuTopic, this, std::placeholders::_1));
+
 }
 
 void PD_controller::setup()
 {
+
+// #if SPEED_REFERENCE == 1
+//   Kp_lin_ << 3.0, 3.0, 4.0;
+//   Kd_lin_ << 0.0, 0.0, 0.0;
+//   Ki_lin_ << 0.00, 0.00, 0.00;
+//   accum_error_ << 0, 0, 0;
+// #else
+//   Kp_lin_ << 5.0, 5.0, 6.0;
+//   Kd_lin_ << 3.0, 3.0, 3.0;
+//   Ki_lin_ << 0.01, 0.01, 0.01;
+//   accum_error_ << 0, 0, 0;
+// #endif
+
+//   Kp_ang_ << 5.5, 5.5, 5.0;
+
+  update_gains(parameters_);
+
   RCLCPP_INFO(this->get_logger(), "PD controller non-linearized");
   RCLCPP_INFO(this->get_logger(), "uav_mass = %f", mass);
-
-#if SPEED_REFERENCE == 1
-  Kp_lin_ << 3.0, 3.0, 4.0;
-  Kd_lin_ << 0.0, 0.0, 0.0;
-  Ki_lin_ << 0.00, 0.00, 0.00;
-  accum_error_ << 0, 0, 0;
-#else
-  Kp_lin_ << 5.0, 5.0, 6.0;
-  Kd_lin_ << 3.0, 3.0, 3.0;
-  Ki_lin_ << 0.01, 0.01, 0.01;
-  accum_error_ << 0, 0, 0;
-#endif
-
-  Kp_ang_ << 5.5, 5.5, 5.0;
 
   flags_.traj_generated = false;
   flags_.hover_position = false;
@@ -75,10 +120,7 @@ void PD_controller::setup()
 
 Vector3d PD_controller::computeForceDesiredByTraj()
 {
-  static Eigen::Matrix3d Kd_lin_mat = Kd_lin_.asDiagonal();
-  static Eigen::Matrix3d Kp_lin_mat = Kp_lin_.asDiagonal();
-  static Eigen::Matrix3d Ki_lin_mat = Ki_lin_.asDiagonal();
-  const static Eigen::Vector3d gravitational_force(0, 0, mass * g);
+  static Eigen::Vector3d gravitational_accel(0, 0, g);
 
   Vector3d r(state_.pos[0], state_.pos[1], state_.pos[2]);
   Vector3d rdot(state_.vel[0], state_.vel[1], state_.vel[2]);
@@ -91,25 +133,21 @@ Vector3d PD_controller::computeForceDesiredByTraj()
 
   accum_error_ += e_p;
 
-  float antiwindup_cte = 1.0f;
   for (short j = 0; j < 3; j++) {
-    float antiwindup_value = antiwindup_cte / Ki_lin_[j];
+    float antiwindup_value = antiwindup_cte_ / Ki_lin_mat.diagonal()[j];
     accum_error_[j] = (accum_error_[j] > antiwindup_value) ? antiwindup_value : accum_error_[j];
     accum_error_[j] = (accum_error_[j] < -antiwindup_value) ? -antiwindup_value : accum_error_[j];
   }
 
   Vector3d F_des = -Kp_lin_mat * e_p - Ki_lin_mat * accum_error_ - Kd_lin_mat * e_v +
-                   gravitational_force + mass * rddot_t;
+                   mass * gravitational_accel + mass * rddot_t;
   return F_des;
 
 }
 
 Vector3d PD_controller::computeForceDesiredBySpeed()
 {
-  static Eigen::Matrix3d Kd_lin_mat = Kd_lin_.asDiagonal();
-  static Eigen::Matrix3d Kp_lin_mat = Kp_lin_.asDiagonal();
-  static Eigen::Matrix3d Ki_lin_mat = Ki_lin_.asDiagonal();
-  const static Eigen::Vector3d gravitational_force(0, 0, mass * g);
+  const static Eigen::Vector3d gravitational_accel(0, 0, g);
 
   Vector3d rdot(state_.vel[0], state_.vel[1], state_.vel[2]);
   Vector3d rdot_t(refs_[0][1], refs_[1][1], refs_[2][1]);
@@ -125,7 +163,7 @@ Vector3d PD_controller::computeForceDesiredBySpeed()
   // compute dt
   static rclcpp::Time last_time = this->now();
   rclcpp::Time current_time = this->now();
-  double dt = (current_time - last_time).nanoseconds() / 1e9;
+  double dt = (current_time - last_time).nanoseconds() / 1.0e9;
   last_time = current_time;
 
   static Vector3d last_e_v = e_v;
@@ -143,9 +181,8 @@ Vector3d PD_controller::computeForceDesiredBySpeed()
   accum_error_ += e_v * dt;
 
   // compute antiwindup
-  float antiwindup_cte = 1.0f;
   for (short j = 0; j < 3; j++) {
-    float antiwindup_value = antiwindup_cte / Ki_lin_[j];
+    float antiwindup_value = antiwindup_cte_ / Ki_lin_mat.diagonal()[j];
     accum_error_[j] = (accum_error_[j] > antiwindup_value) ? antiwindup_value : accum_error_[j];
     accum_error_[j] = (accum_error_[j] < -antiwindup_value) ? -antiwindup_value : accum_error_[j];
   }
@@ -157,7 +194,7 @@ Vector3d PD_controller::computeForceDesiredBySpeed()
   Vector3d a_des = vel_error_contribution + dvel_error_contribution + accum_vel_error_contribution ;
 
   // compute F_des
-  Vector3d F_des = mass * a_des + mass * gravitational_force;
+  Vector3d F_des = mass * a_des + mass * gravitational_accel;
 
   return F_des;
 }
@@ -165,9 +202,6 @@ Vector3d PD_controller::computeForceDesiredBySpeed()
 
 void PD_controller::computeActions()
 {
-
-  static Eigen::Matrix3d Kp_ang_mat = Kp_ang_.asDiagonal();
-
 #if SPEED_REFERENCE == 1
   Vector3d F_des = computeForceDesiredBySpeed();
 #else

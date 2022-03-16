@@ -5,7 +5,7 @@
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * 1. Redistributions of source code must retain the above copyright notice,
  *    this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright notice,
@@ -14,7 +14,7 @@
  * 3. Neither the name of the copyright holder nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
  * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
@@ -36,11 +36,14 @@
 #include <cmath>
 #include <iostream>
 #include <memory>
+#include <rclcpp/logging.hpp>
+#include <unordered_map>
 #include <vector>
 
 // Eigen
 #include <Eigen/Dense>
 
+#include "Eigen/src/Core/Matrix.h"
 #include "as2_control_command_handlers/acro_control.hpp"
 #include "as2_core/node.hpp"
 #include "as2_msgs/msg/thrust.hpp"
@@ -61,15 +64,13 @@
 
 using Vector3d = Eigen::Vector3d;
 
-struct Control_flags
-{
+struct Control_flags {
   bool traj_generated;
   bool hover_position;
   bool state_received;
 };
 
-struct UAV_state
-{
+struct UAV_state {
   // State composed of s = [pose ,d_pose]'
   Vector3d pos;
   Vector3d rot;
@@ -77,9 +78,8 @@ struct UAV_state
   Vector3d omega;
 };
 
-class PD_controller : public as2::Node
-{
-private:
+class PD_controller : public as2::Node {
+  private:
   std::string n_space_;
   std::string self_localization_pose_topic_;
   std::string self_localization_speed_topic_;
@@ -101,20 +101,26 @@ private:
   // controller stuff
   const float g = 9.81;
 
-  Eigen::Vector3d Kp_lin_;
-  Eigen::Vector3d Kd_lin_;
-  Eigen::Vector3d Kp_ang_;
-  Eigen::Vector3d Ki_lin_;
+  // Eigen::Vector3d Kp_lin_;
+  // Eigen::Vector3d Kd_lin_;
+  // Eigen::Vector3d Kp_ang_;
+  // Eigen::Vector3d Ki_lin_;
   Eigen::Vector3d accum_error_;
 
+  Eigen::Matrix3d Kd_lin_mat;
+  Eigen::Matrix3d Kp_lin_mat;
+  Eigen::Matrix3d Ki_lin_mat;
+  Eigen::Matrix3d Kp_ang_mat;
+
   Eigen::Matrix3d Rot_matrix;
+  float antiwindup_cte_ = 1.0f;
 
   float u1 = 0.0;
   float u2[3] = {0.0, 0.0, 0.0};
 
   std::array<std::array<float, 3>, 4> refs_;
 
-public:
+  public:
   PD_controller();
   ~PD_controller(){};
 
@@ -125,10 +131,68 @@ public:
   void setup();
   void run();
 
+  std::unordered_map<std::string,double> parameters_;
+  void update_gains(const std::unordered_map<std::string,double>& params){
+    // for (auto& [key, value] : params) {
+    //   RCLCPP_INFO(this->get_logger(), "Updating gains: %s = %f", key.c_str(), value);
+    // }
+#if SPEED_REFERENCE == 1
+    Eigen::Vector3d Kp_lin(params.at("speed_following.speed_Kp.x"),
+                           params.at("speed_following.speed_Kp.y"),
+                           params.at("speed_following.speed_Kp.z"));
+    Eigen::Vector3d Kd_lin(params.at("speed_following.speed_Kd.x"),
+                            params.at("speed_following.speed_Kd.y"),
+                            params.at("speed_following.speed_Kd.z"));
+    Eigen::Vector3d Ki_lin(params.at("speed_following.speed_Ki.x"),
+                            params.at("speed_following.speed_Ki.y"),
+                            params.at("speed_following.speed_Ki.z"));
+#else
+    Eigen::Vector3d Kp_lin(params.at("position_following.position_Kp.x"),
+                           params.at("position_following.position_Kp.y"),
+                           params.at("position_following.position_Kp.z"));
+    Eigen::Vector3d Kd_lin(params.at("position_following.speed_Kp.x"),
+                            params.at("position_following.speed_Kp.y"),
+                            params.at("position_following.speed_Kp.z"));
+    Eigen::Vector3d Ki_lin(params.at("position_following.position_Ki.x"),
+                            params.at("position_following.position_Ki.y"),
+                            params.at("position_following.position_Ki.z"));
+#endif
+    Eigen::Vector3d Kp_ang(params.at("angular_speed_controller.angular_gain.x"),
+                            params.at("angular_speed_controller.angular_gain.y"),
+                            params.at("angular_speed_controller.angular_gain.z"));
+    Kp_lin_mat = Kp_lin.asDiagonal();
+    Kd_lin_mat = Kd_lin.asDiagonal();
+    Ki_lin_mat = Ki_lin.asDiagonal();
+    Kp_ang_mat = Kp_ang.asDiagonal();
+
+    mass = params.at("uav_mass");
+    antiwindup_cte_ = params.at("antiwindup_cte");
+  };
+
   void CallbackOdomTopic(const nav_msgs::msg::Odometry::SharedPtr odom_msg);
 
-private:
+  rcl_interfaces::msg::SetParametersResult parametersCallback(
+      const std::vector<rclcpp::Parameter> &parameters) {
+    rcl_interfaces::msg::SetParametersResult result;
+    result.successful = true;
+    result.reason = "success";
+    for (auto& param:parameters){
+      // check if the parameter is defined in parameters_
+      if (parameters_.find(param.get_name()) != parameters_.end()){
+        parameters_[param.get_name()] = param.get_value<double>();
+      }
+      else {
+        result.successful = false;
+        result.reason = "parameter not found";
+      }
+    }
+    if (result.successful){
+      update_gains(parameters_);
+    }
+    return result;
+  }
 
+  private:
   Vector3d computeForceDesiredByTraj();
   Vector3d computeForceDesiredBySpeed();
   void CallbackTrajTopic(const trajectory_msgs::msg::JointTrajectoryPoint::SharedPtr traj_msg);
