@@ -46,6 +46,7 @@
 #include "Eigen/src/Core/Matrix.h"
 #include "as2_control_command_handlers/acro_control.hpp"
 #include "as2_core/node.hpp"
+#include "as2_core/names/topics.hpp"
 #include "as2_msgs/msg/thrust.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/twist_stamped.hpp"

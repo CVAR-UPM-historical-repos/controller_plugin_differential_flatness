@@ -75,15 +75,17 @@ PD_controller::PD_controller() : as2::Node("differential_flatness_controller",  
 
   //TODO: read drone config files to read mass parameters
   sub_odom_ = this->create_subscription<nav_msgs::msg::Odometry>(
-    this->generate_global_name("self_localization/odom"), 1,
-    std::bind(&PD_controller::CallbackOdomTopic, this, std::placeholders::_1));
+    this->generate_global_name(as2_names::topics::self_localization::odom),
+      as2_names::topics::self_localization::qos,
+      std::bind(&PD_controller::CallbackOdomTopic, this, std::placeholders::_1));
   sub_traj_ = this->create_subscription<trajectory_msgs::msg::JointTrajectoryPoint>(
-    this->generate_global_name("motion_reference/trajectory"), 1,
-    std::bind(&PD_controller::CallbackTrajTopic, this, std::placeholders::_1));
+    this->generate_global_name(as2_names::topics::motion_reference::trajectory),
+      as2_names::topics::motion_reference::qos,
+      std::bind(&PD_controller::CallbackTrajTopic, this, std::placeholders::_1));
   sub_imu_ = this->create_subscription<sensor_msgs::msg::Imu>(
-    this->generate_global_name("platform/imu"), 1,
-    std::bind(&PD_controller::CallbackImuTopic, this, std::placeholders::_1));
-
+    this->generate_global_name(as2_names::topics::sensor_measurements::imu), 
+      as2_names::topics::sensor_measurements::qos,
+      std::bind(&PD_controller::CallbackImuTopic, this, std::placeholders::_1));
 }
 
 void PD_controller::setup()
