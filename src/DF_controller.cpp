@@ -35,45 +35,24 @@ PD_controller::PD_controller() : as2::Node("differential_flatness_controller",  
       .allow_undeclared_parameters(true)
       .automatically_declare_parameters_from_overrides(true).start_parameter_services(true))
 {
-  // rcl_interfaces::msg::ParameterDescriptor a = this->describe_parameter("trajectory_following.test_x");
-  // a.type = rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY;
-
-  // a.floating_point_range.clear();
-  // rcl_interfaces::msg::FloatingPointRange range_;
-  // range_.from_value = -1.0;
-  // range_.to_value = 1.0;
-  // range_.step = 0.1;
-  // a.floating_point_range.emplace_back(range_);
-  
-  // std::vector<double> default_value1 = {0.1,0.3,0.5,0.7,0.9};
-  // this->declare_parameter("trajectory_following.test_x",default_value1, a);
-
   RCLCPP_INFO(this->get_logger(),
       "Parameter blackboard node named '%s' ready, and serving '%zu' parameters already!",
       this->get_name(), this->list_parameters(
         {this->get_namespace()}, rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE).names.size());
 
-  // print all parameter_names
   for (auto &parameter_name : this->list_parameters(
         {}, rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE).names)
   {
-    RCLCPP_INFO(this->get_logger(), "Parameter: %s", parameter_name.c_str());
+    // RCLCPP_INFO(this->get_logger(), "Parameter: %s", parameter_name.c_str());
     if (this->get_parameter(parameter_name).get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE)
     {
       parameters_.emplace(parameter_name, this->get_parameter(parameter_name).as_double());
     }
   }
 
-  // print all parameters_ key, value
-  // for (auto &parameter : parameters_)
-  // {
-  //   RCLCPP_INFO(this->get_logger(), "Parameter: %s, value: %f", parameter.first.c_str(), parameter.second);
-  // }
-
   static auto callback_handle_ = this->add_on_set_parameters_callback(
     std::bind(&PD_controller::parametersCallback, this, std::placeholders::_1));
 
-  //TODO: read drone config files to read mass parameters
   sub_odom_ = this->create_subscription<nav_msgs::msg::Odometry>(
     this->generate_global_name(as2_names::topics::self_localization::odom),
       as2_names::topics::self_localization::qos,
@@ -242,7 +221,6 @@ void PD_controller::publishActions()
   static as2::controlCommandsHandlers::AcroControl acro_controller(this);
   // FIXME: check sings
   acro_controller.sendAngleRatesWithThrust(u2[0], -u2[1], -u2[2], u1);
-  // RCLCPP_INFO(this->get_logger(), "Publishing actions");
 };
 
 void PD_controller::run()

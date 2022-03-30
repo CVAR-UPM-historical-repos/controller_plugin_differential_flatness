@@ -58,10 +58,9 @@
 
 // FIXME: read this from the parameter server
 
-#define DRONE_MASS 1.5
 #define SATURATE_YAW_ERROR 1
 
-#define SPEED_REFERENCE 1
+#define SPEED_REFERENCE 0
 
 using Vector3d = Eigen::Vector3d;
 
@@ -81,15 +80,6 @@ struct UAV_state {
 
 class PD_controller : public as2::Node {
   private:
-  std::string n_space_;
-  std::string self_localization_pose_topic_;
-  std::string self_localization_speed_topic_;
-  std::string sensor_measurement_imu_topic_;
-  std::string motion_reference_traj_topic_;
-
-  std::string actuator_command_thrust_topic_;
-  std::string actuator_command_speed_topic_;
-
   float mass = 1.5f;
 
   rclcpp::Subscription<trajectory_msgs::msg::JointTrajectoryPoint>::SharedPtr sub_traj_;
@@ -134,8 +124,8 @@ class PD_controller : public as2::Node {
 
   std::unordered_map<std::string,double> parameters_;
   void update_gains(const std::unordered_map<std::string,double>& params){
-    // for (auto& [key, value] : params) {
-    //   RCLCPP_INFO(this->get_logger(), "Updating gains: %s = %f", key.c_str(), value);
+    // for (auto it = params.begin(); it != params.end(); it++) {
+    //   RCLCPP_INFO(this->get_logger(), "Updating gains: %s = %f", it->first.c_str(), it->second);
     // }
 #if SPEED_REFERENCE == 1
     Eigen::Vector3d Kp_lin(params.at("speed_following.speed_Kp.x"),
@@ -148,19 +138,19 @@ class PD_controller : public as2::Node {
                             params.at("speed_following.speed_Ki.y"),
                             params.at("speed_following.speed_Ki.z"));
 #else
-    Eigen::Vector3d Kp_lin(params.at("position_following.position_Kp.x"),
-                           params.at("position_following.position_Kp.y"),
-                           params.at("position_following.position_Kp.z"));
-    Eigen::Vector3d Kd_lin(params.at("position_following.speed_Kp.x"),
-                            params.at("position_following.speed_Kp.y"),
-                            params.at("position_following.speed_Kp.z"));
-    Eigen::Vector3d Ki_lin(params.at("position_following.position_Ki.x"),
-                            params.at("position_following.position_Ki.y"),
-                            params.at("position_following.position_Ki.z"));
+    Eigen::Vector3d Kp_lin(params.at("trajectory_following.position_Kp.x"),
+                           params.at("trajectory_following.position_Kp.y"),
+                           params.at("trajectory_following.position_Kp.z"));
+    Eigen::Vector3d Kd_lin(params.at("trajectory_following.position_Kd.x"),
+                           params.at("trajectory_following.position_Kd.y"),
+                           params.at("trajectory_following.position_Kd.z"));
+    Eigen::Vector3d Ki_lin(params.at("trajectory_following.position_Ki.x"),
+                           params.at("trajectory_following.position_Ki.y"),
+                           params.at("trajectory_following.position_Ki.z"));
 #endif
     Eigen::Vector3d Kp_ang(params.at("angular_speed_controller.angular_gain.x"),
-                            params.at("angular_speed_controller.angular_gain.y"),
-                            params.at("angular_speed_controller.angular_gain.z"));
+                           params.at("angular_speed_controller.angular_gain.y"),
+                           params.at("angular_speed_controller.angular_gain.z"));
     Kp_lin_mat = Kp_lin.asDiagonal();
     Kd_lin_mat = Kd_lin.asDiagonal();
     Ki_lin_mat = Ki_lin.asDiagonal();
