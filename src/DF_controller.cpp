@@ -61,10 +61,6 @@ PD_controller::PD_controller() : as2::Node("differential_flatness_controller",  
     this->generate_global_name(as2_names::topics::motion_reference::trajectory),
       as2_names::topics::motion_reference::qos,
       std::bind(&PD_controller::CallbackTrajTopic, this, std::placeholders::_1));
-  sub_imu_ = this->create_subscription<sensor_msgs::msg::Imu>(
-    this->generate_global_name(as2_names::topics::sensor_measurements::imu), 
-      as2_names::topics::sensor_measurements::qos,
-      std::bind(&PD_controller::CallbackImuTopic, this, std::placeholders::_1));
 }
 
 void PD_controller::setup()
@@ -219,8 +215,7 @@ void PD_controller::computeActions()
 void PD_controller::publishActions()
 {
   static as2::controlCommandsHandlers::AcroControl acro_controller(this);
-  // FIXME: check sings
-  acro_controller.sendAngleRatesWithThrust(u2[0], -u2[1], -u2[2], u1);
+  acro_controller.sendAngleRatesWithThrust(u2[0], u2[1], u2[2], u1);
 };
 
 void PD_controller::run()
@@ -264,15 +259,4 @@ void PD_controller::CallbackOdomTopic(const nav_msgs::msg::Odometry::SharedPtr m
   state_.rot = Rot_matrix.eulerAngles(0, 1, 2);
 
   flags_.state_received = true;
-}
-
-void PD_controller::CallbackImuTopic(const sensor_msgs::msg::Imu::SharedPtr msg)
-{
-  auto & imu_msg = *(msg.get());
-
-  // FIXME: IMU IS FRD NOT ENU
-  //FIXME SIGNS ARE CHANGED
-  state_.omega[0] = imu_msg.angular_velocity.x;
-  state_.omega[1] = -imu_msg.angular_velocity.y;
-  state_.omega[2] = -imu_msg.angular_velocity.z;
 }

@@ -75,7 +75,6 @@ struct UAV_state {
   Vector3d pos;
   Vector3d rot;
   Vector3d vel;
-  Vector3d omega;
 };
 
 class PD_controller : public as2::Node {
@@ -84,7 +83,6 @@ class PD_controller : public as2::Node {
 
   rclcpp::Subscription<trajectory_msgs::msg::JointTrajectoryPoint>::SharedPtr sub_traj_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sub_odom_;
-  rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr sub_imu_;
 
   UAV_state state_;
   Control_flags flags_;
@@ -187,7 +185,6 @@ class PD_controller : public as2::Node {
   Vector3d computeForceDesiredByTraj();
   Vector3d computeForceDesiredBySpeed();
   void CallbackTrajTopic(const trajectory_msgs::msg::JointTrajectoryPoint::SharedPtr traj_msg);
-  void CallbackImuTopic(const sensor_msgs::msg::Imu::SharedPtr imu_msg);
 };
 
 #endif
