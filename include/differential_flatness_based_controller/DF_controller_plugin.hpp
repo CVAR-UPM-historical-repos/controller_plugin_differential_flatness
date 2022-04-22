@@ -28,8 +28,8 @@
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *******************************************************************************/
 
-#ifndef __PD_CONTROLLER_H__
-#define __PD_CONTROLLER_H__
+#ifndef __PD_CONTROLLER_PLUGIN_H__
+#define __PD_CONTROLLER_PLUGIN_H__
 
 // Std libraries
 #include <array>
@@ -62,18 +62,42 @@
 #include "std_srvs/srv/set_bool.hpp"
 
 #include "controller_plugin_base/controller_base.hpp"
+#include "differential_flatness_based_controller/DF_controller.hpp"
 
 namespace controller_plugin_base
 {
   using Vector3d = Eigen::Vector3d;
 
-  class PDController : public controller_plugin_base::ControllerBase
+  class PDControllerPlugin : public controller_plugin_base::ControllerBase
   {
     public:
-      PDController();
-      ~PDController(){};
+      PDControllerPlugin();
+      ~PDControllerPlugin(){};
+    
+    public:
+      void initialize(as2::Node *node_ptr);
+
+      void updateState(const nav_msgs::msg::Odometry &odom);
+
+      void updateReference(const geometry_msgs::msg::PoseStamped &ref){};
+      void updateReference(const geometry_msgs::msg::TwistStamped &ref);
+      void updateReference(const trajectory_msgs::msg::JointTrajectoryPoint &ref);
+      void updateReference(const as2_msgs::msg::Thrust &ref){};
+
+      void computeOutput(geometry_msgs::msg::PoseStamped &pose,
+                        geometry_msgs::msg::TwistStamped &twist,
+                        as2_msgs::msg::Thrust &thrust);
+
+      bool setMode(const as2_msgs::msg::ControlMode &mode_in,
+                   const as2_msgs::msg::ControlMode &mode_out);
+      
+    
+      void update_gains(const std::unordered_map<std::string,double>& params);
 
     private:
+
+      controller_plugin_base::PDControlle *controller_;
+
       struct Control_flags
       {
         bool ref_generated;
@@ -81,15 +105,20 @@ namespace controller_plugin_base
         bool state_received;
       };
 
-      struct UAV_state
-      {
-        // State composed of s = [pose ,d_pose]'
-        Vector3d pos;
-        Vector3d rot;
-        Vector3d vel;
-      };
+      std::unordered_map<uint8_t, bool> control_mode_in_table_;
+      std::unordered_map<uint8_t, bool> control_mode_out_table_;
 
-      UAV_state state_;
+      std::unordered_map<uint8_t, bool> yaw_mode_in_table_;
+      std::unordered_map<uint8_t, bool> yaw_mode_out_table_;
+
+
+      std::unordered_map<uint8_t, bool> reference_frame_in_table_;
+      std::unordered_map<uint8_t, bool> reference_frame_out_table_;
+
+      as2_msgs::msg::ControlMode control_mode_in_;
+      as2_msgs::msg::ControlMode control_mode_out_;
+      
+      Control_flags flags_;
 
       std::unordered_map<std::string, double> parameters_;
 
@@ -121,7 +150,7 @@ namespace controller_plugin_base
 
       std::array<std::array<float, 3>, 4> refs_;
 
-    public:
+    private:
       void initialize_references();
       void reset_references();
       void resetErrors();
@@ -153,6 +182,6 @@ namespace controller_plugin_base
 
 // #include <pluginlib/class_list_macros.hpp>
 
-// PLUGINLIB_EXPORT_CLASS(controller_plugins::PDController, controller_base::ControllerBase)
+// PLUGINLIB_EXPORT_CLASS(controller_plugins::PDControllerPlugin, controller_base::ControllerBase)
 
 #endif

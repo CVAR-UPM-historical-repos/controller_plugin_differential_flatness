@@ -28,22 +28,41 @@
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *******************************************************************************/
 
-#include "differential_flatness_based_controller/DF_controller.hpp"
+#include "differential_flatness_based_controller/DF_controller_plugin.hpp"
 
 namespace controller_plugin_base
 {
-
-    void PDController::initialize(as2::Node *node_ptr)
+    void PDControllerPlugin::initialize(as2::Node *node_ptr)
     {
-        PDController::update_gains(parameters_);
-        PDController::initialize_references();
-        PDController::resetErrors();
-        PDController::resetCommands();
+        // Complete control mode table
+        control_mode_in_table_ = {
+            {as2_msgs::msg::ControlMode::SPEED, true},
+            {as2_msgs::msg::ControlMode::TRAJECTORY, true}};
+
+        control_mode_out_table_ = {
+            {as2_msgs::msg::ControlMode::ACRO, true}};
+
+        yaw_mode_in_table_ = {
+            {as2_msgs::msg::ControlMode::YAW_ANGLE, true}};
+
+        yaw_mode_out_table_ = {
+            {as2_msgs::msg::ControlMode::YAW_ANGLE, true}};
+
+        reference_frame_in_table_ = {
+            {as2_msgs::msg::ControlMode::LOCAL_ENU_FRAME, true}};
+
+        reference_frame_out_table_ = {
+            {as2_msgs::msg::ControlMode::LOCAL_ENU_FRAME, true}};
+
+        PDControllerPlugin::update_gains(parameters_);
+        PDControllerPlugin::initialize_references();
+        PDControllerPlugin::resetErrors();
+        PDControllerPlugin::resetCommands();
 
         return;
     };
 
-    void PDController::updateState(const nav_msgs::msg::Odometry &odom)
+    void PDControllerPlugin::updateState(const nav_msgs::msg::Odometry &odom)
     {
         state_.pos[0] = odom.pose.pose.position.x;
         state_.pos[1] = odom.pose.pose.position.y;
@@ -67,7 +86,7 @@ namespace controller_plugin_base
         return;
     };
 
-    void PDController::updateReference(
+    void PDControllerPlugin::updateReference(
         const geometry_msgs::msg::TwistStamped &twist_msg)
     {
         if (control_mode_in_.control_mode != as2_msgs::msg::ControlMode::SPEED)
@@ -88,7 +107,7 @@ namespace controller_plugin_base
         return;
     };
 
-    void PDController::updateReference(
+    void PDControllerPlugin::updateReference(
         const trajectory_msgs::msg::JointTrajectoryPoint &traj_msg)
     {
         if (control_mode_in_.control_mode != as2_msgs::msg::ControlMode::TRAJECTORY)
@@ -114,7 +133,7 @@ namespace controller_plugin_base
         //   | x_ref_yaw | v_ref_yaw | a_ref_yaw |
     };
 
-    void PDController::computeOutput(
+    void PDControllerPlugin::computeOutput(
         geometry_msgs::msg::PoseStamped &pose,
         geometry_msgs::msg::TwistStamped &twist,
         as2_msgs::msg::Thrust &thrust)
@@ -129,26 +148,26 @@ namespace controller_plugin_base
         if (!flags_.ref_generated)
         {
             RCLCPP_WARN_ONCE(node_ptr_->get_logger(), "State changed, but ref not recived yet"); 
-            PDController::computeHOVER(pose, twist, thrust);
+            PDControllerPlugin::computeHOVER(pose, twist, thrust);
         }
         else 
         {
-            PDController::computeActions(pose, twist, thrust);
+            PDControllerPlugin::computeActions(pose, twist, thrust);
         }
 
         return;
     };
 
-    bool PDController::setMode(const as2_msgs::msg::ControlMode &in_mode, const as2_msgs::msg::ControlMode &out_mode)
+    bool PDControllerPlugin::setMode(const as2_msgs::msg::ControlMode &in_mode, const as2_msgs::msg::ControlMode &out_mode)
     {
         control_mode_in_ = in_mode;
         control_mode_out_ = out_mode;
-        PDController::reset_references();
-        PDController::resetErrors();
+        PDControllerPlugin::reset_references();
+        PDControllerPlugin::resetErrors();
         return true;
     };
 
-    void PDController::update_gains(const std::unordered_map<std::string, double> &params)
+    void PDControllerPlugin::update_gains(const std::unordered_map<std::string, double> &params)
     {
         // for (auto it = params.begin(); it != params.end(); it++) {
         //   RCLCPP_INFO(this->get_logger(), "Updating gains: %s = %f", it->first.c_str(), it->second);
@@ -194,7 +213,7 @@ namespace controller_plugin_base
         return;
     };
 
-    void PDController::initialize_references()
+    void PDControllerPlugin::initialize_references()
     {
         // set all refs to zefs
         for (auto dof : refs_)
@@ -206,7 +225,7 @@ namespace controller_plugin_base
         return;
     };
 
-    void PDController::reset_references()
+    void PDControllerPlugin::reset_references()
     {
 
         RCLCPP_INFO(node_ptr_->get_logger(), "Resetting references");
@@ -234,31 +253,31 @@ namespace controller_plugin_base
         return;
     };
 
-    void PDController::resetErrors()
+    void PDControllerPlugin::resetErrors()
     {
         // Set errors to zero
         accum_error_.setZero();
         return;
     };
 
-    void PDController::computeActions(
+    void PDControllerPlugin::computeActions(
         geometry_msgs::msg::PoseStamped &pose,
         geometry_msgs::msg::TwistStamped &twist,
         as2_msgs::msg::Thrust &thrust)
     {
-        PDController::resetCommands();
+        PDControllerPlugin::resetCommands();
 
         switch (control_mode_in_.control_mode)
         {
         case as2_msgs::msg::ControlMode::HOVER:
-            PDController::computeHOVER(pose, twist, thrust);
+            PDControllerPlugin::computeHOVER(pose, twist, thrust);
             return;
             break;
         case as2_msgs::msg::ControlMode::SPEED:
-            PDController::computeSpeedControl(f_des_);
+            PDControllerPlugin::computeSpeedControl(f_des_);
             break;
         case as2_msgs::msg::ControlMode::TRAJECTORY:
-            PDController::computeTrajectoryControl(f_des_);
+            PDControllerPlugin::computeTrajectoryControl(f_des_);
             break;
         default:
             RCLCPP_ERROR_ONCE(node_ptr_->get_logger(), "Unknown control mode");
@@ -269,7 +288,7 @@ namespace controller_plugin_base
         switch (control_mode_in_.yaw_mode)
         {
         case as2_msgs::msg::ControlMode::YAW_ANGLE:
-            PDController::comnputeYawAngleControl(f_des_, acro_, thrust_);
+            PDControllerPlugin::comnputeYawAngleControl(f_des_, acro_, thrust_);
             break;
         
         default:
@@ -278,35 +297,35 @@ namespace controller_plugin_base
             break;
         }
 
-        PDController::getOutput(
+        PDControllerPlugin::getOutput(
             pose, twist, thrust,
             acro_, thrust_);
 
         return;
     };
 
-    void PDController::resetCommands()
+    void PDControllerPlugin::resetCommands()
     {
         f_des_.setZero();
         acro_.setZero();
         thrust_ = 0.0f;
     }
 
-    void PDController::computeHOVER(
+    void PDControllerPlugin::computeHOVER(
         geometry_msgs::msg::PoseStamped &pose,
         geometry_msgs::msg::TwistStamped &twist,
         as2_msgs::msg::Thrust &thrust)
     {
-        PDController::resetCommands();
-        PDController::computeTrajectoryControl(f_des_);
-        PDController::comnputeYawAngleControl(f_des_, acro_, thrust_);
-        PDController::getOutput(
+        PDControllerPlugin::resetCommands();
+        PDControllerPlugin::computeTrajectoryControl(f_des_);
+        PDControllerPlugin::comnputeYawAngleControl(f_des_, acro_, thrust_);
+        PDControllerPlugin::getOutput(
             pose, twist, thrust,
             acro_, thrust_);
         return;
     }
 
-    void PDController::computeSpeedControl(Vector3d &f_des)
+    void PDControllerPlugin::computeSpeedControl(Vector3d &f_des)
     {
         Vector3d rdot(state_.vel[0], state_.vel[1], state_.vel[2]);
         Vector3d rdot_t(refs_[0][1], refs_[1][1], refs_[2][1]);
@@ -359,7 +378,7 @@ namespace controller_plugin_base
         return;
     };
 
-    void PDController::computeTrajectoryControl(Vector3d &f_des)
+    void PDControllerPlugin::computeTrajectoryControl(Vector3d &f_des)
     {
         Vector3d r(state_.pos[0], state_.pos[1], state_.pos[2]);
         Vector3d rdot(state_.vel[0], state_.vel[1], state_.vel[2]);
@@ -385,7 +404,7 @@ namespace controller_plugin_base
         return;
     };
     
-    void PDController::comnputeYawAngleControl(Vector3d &f_des, Vector3d &acro, float &thrust)
+    void PDControllerPlugin::comnputeYawAngleControl(Vector3d &f_des, Vector3d &acro, float &thrust)
     {
         Vector3d zb_des = f_des.normalized();
 
@@ -416,7 +435,7 @@ namespace controller_plugin_base
         return;
     };
 
-    void PDController::getOutput(
+    void PDControllerPlugin::getOutput(
         geometry_msgs::msg::PoseStamped &pose_msg,
         geometry_msgs::msg::TwistStamped &twist_msg,
         as2_msgs::msg::Thrust &thrust_msg, 

@@ -37,6 +37,7 @@ endforeach()
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 set(SOURCE_CPP_FILES 
+  src/DF_controller_plugin.cpp
   src/DF_controller.cpp
 )
 
