@@ -67,6 +67,21 @@ namespace controller_plugin_base
 {
   using Vector3d = Eigen::Vector3d;
 
+  struct Control_flags
+  {
+    bool ref_generated;
+    bool hover_position;
+    bool state_received;
+  };
+
+  struct UAV_state
+  {
+    // State composed of s = [pose ,d_pose]'
+    Vector3d pos;
+    Vector3d rot;
+    Vector3d vel;
+  };
+
   class PDController : public controller_plugin_base::ControllerBase
   {
     public:
@@ -74,22 +89,44 @@ namespace controller_plugin_base
       ~PDController(){};
 
     private:
-      struct Control_flags
-      {
-        bool ref_generated;
-        bool hover_position;
-        bool state_received;
-      };
+      as2::Node* node_ptr_;
 
-      struct UAV_state
-      {
-        // State composed of s = [pose ,d_pose]'
-        Vector3d pos;
-        Vector3d rot;
-        Vector3d vel;
-      };
+    public:
+      void initialize(as2::Node *node_ptr);
+
+      void updateState(const nav_msgs::msg::Odometry &odom);
+
+      void updateReference(const geometry_msgs::msg::PoseStamped &ref){};
+      void updateReference(const geometry_msgs::msg::TwistStamped &ref);
+      void updateReference(const trajectory_msgs::msg::JointTrajectoryPoint &ref);
+      void updateReference(const as2_msgs::msg::Thrust &ref){};
+
+      void computeOutput(geometry_msgs::msg::PoseStamped &pose,
+                        geometry_msgs::msg::TwistStamped &twist,
+                        as2_msgs::msg::Thrust &thrust);
+
+      bool setMode(const as2_msgs::msg::ControlMode &mode_in,
+                   const as2_msgs::msg::ControlMode &mode_out);
+      
+      void update_gains(const std::unordered_map<std::string, double> &params);
+
+    private:
+
+      std::unordered_map<uint8_t, bool> control_mode_in_table_;
+      std::unordered_map<uint8_t, bool> control_mode_out_table_;
+
+      std::unordered_map<uint8_t, bool> yaw_mode_in_table_;
+      std::unordered_map<uint8_t, bool> yaw_mode_out_table_;
+
+
+      std::unordered_map<uint8_t, bool> reference_frame_in_table_;
+      std::unordered_map<uint8_t, bool> reference_frame_out_table_;
+
+      as2_msgs::msg::ControlMode control_mode_in_;
+      as2_msgs::msg::ControlMode control_mode_out_;
 
       UAV_state state_;
+      Control_flags flags_;
 
       std::unordered_map<std::string, double> parameters_;
 
@@ -121,7 +158,34 @@ namespace controller_plugin_base
 
       std::array<std::array<float, 3>, 4> refs_;
 
-    public:
+      // List of string names for the parameters
+      std::vector<std::string> param_names_ = {
+        "speed_following.speed_Kp.x",
+        "speed_following.speed_Kp.y",
+        "speed_following.speed_Kp.z",
+        "speed_following.speed_Kd.x",
+        "speed_following.speed_Kd.y",
+        "speed_following.speed_Kd.z",
+        "speed_following.speed_Ki.x",
+        "speed_following.speed_Ki.y",
+        "speed_following.speed_Ki.z",
+        "trajectory_following.position_Kp.x",
+        "trajectory_following.position_Kp.y",
+        "trajectory_following.position_Kp.z",
+        "trajectory_following.position_Kd.x",
+        "trajectory_following.position_Kd.y",
+        "trajectory_following.position_Kd.z",
+        "trajectory_following.position_Ki.x",
+        "trajectory_following.position_Ki.y",
+        "trajectory_following.position_Ki.z",
+        "angular_speed_controller.angular_gain.x",
+        "angular_speed_controller.angular_gain.y",
+        "angular_speed_controller.angular_gain.z",
+      };
+
+    private:
+      void readParameters(std::vector<std::string> &params);
+
       void initialize_references();
       void reset_references();
       void resetErrors();

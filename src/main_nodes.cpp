@@ -28,23 +28,17 @@
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *******************************************************************************/
 
+// #include "DF_controller.hpp"s
 #include "rclcpp/rclcpp.hpp"
 #include "as2_core/core_functions.hpp"
 
 #include "differential_flatness_based_controller/DF_controller.hpp"
-#include "differential_flatness_based_controller/DF_controller_plugin.hpp"
 
 int main(int argc, char** argv)
 {
-  std::vector<controller_plugin_base::PDControllerPlugin*> controller_plugin;
-
-  std::vector<controller_plugin_base::PDController*> controller;
-
+  std::vector<controller_plugin_base::PDController*> controllers;
   std::cout << "Hello World" << std::endl;
   // print array length
-
-  std::cout << "Array length: " << controller.size() << std::endl;
-
-  std::cout << "Array length: " << controller_plugin.size() << std::endl;
+  std::cout << "Array length: " << controllers.size() << std::endl;
   return 0;
 }

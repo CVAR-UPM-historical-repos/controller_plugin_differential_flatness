@@ -35,7 +35,34 @@ namespace controller_plugin_base
 
     void PDController::initialize(as2::Node *node_ptr)
     {
+        node_ptr_ = node_ptr;
+
+        // Complete control mode table
+        control_mode_in_table_ = {
+            {as2_msgs::msg::ControlMode::SPEED, true},
+            {as2_msgs::msg::ControlMode::TRAJECTORY, true}};
+
+        control_mode_out_table_ = {
+            {as2_msgs::msg::ControlMode::ACRO, true}};
+
+        yaw_mode_in_table_ = {
+            {as2_msgs::msg::ControlMode::YAW_ANGLE, true}};
+
+        yaw_mode_out_table_ = {
+            {as2_msgs::msg::ControlMode::YAW_ANGLE, true}};
+
+        reference_frame_in_table_ = {
+            {as2_msgs::msg::ControlMode::LOCAL_ENU_FRAME, true}};
+
+        reference_frame_out_table_ = {
+            {as2_msgs::msg::ControlMode::LOCAL_ENU_FRAME, true}};
+
+        PDController::readParameters(param_names_);
         PDController::update_gains(parameters_);
+
+        // Free parameters name vector
+        param_names_ = std::vector<std::string>();
+
         PDController::initialize_references();
         PDController::resetErrors();
         PDController::resetCommands();
@@ -147,6 +174,28 @@ namespace controller_plugin_base
         PDController::resetErrors();
         return true;
     };
+
+    void PDController::readParameters(std::vector<std::string> &params)
+    {
+        for(auto it = std::begin(params); it != std::end(params); ++it) {
+            node_ptr_->declare_parameter(*it);
+            parameters_.emplace(*it, 0.0);
+        }
+
+        for (auto &parameter_name : node_ptr_->list_parameters(
+                {}, rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE).names)
+        {
+            // RCLCPP_INFO(this->get_logger(), "Parameter: %s", parameter_name.c_str());
+            if (!parameters_.count(parameter_name) &&
+                node_ptr_->get_parameter(parameter_name).get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE)
+            {
+                parameters_[parameter_name] = node_ptr_->get_parameter(parameter_name).as_double();
+                // parameters_.emplace(parameter_name, node_ptr_->get_parameter(parameter_name).as_double());
+            }
+        }
+
+        return;
+    }
 
     void PDController::update_gains(const std::unordered_map<std::string, double> &params)
     {
