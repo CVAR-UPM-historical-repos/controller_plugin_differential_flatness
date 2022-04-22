@@ -5,9 +5,9 @@
 
 #include "DF_controller.hpp"
 #include "rclcpp/rclcpp.hpp"
-
-PD_controller *ptr = nullptr;
 /*
+PD_controller *ptr = nullptr;
+
 static void BM_COMPUTE_ACTIONS(benchmark::State &state)
 {
   // ptr->setup();
@@ -27,7 +27,7 @@ static void BM_ODOM_CB(benchmark::State &state)
   }
 }
 BENCHMARK(BM_ODOM_CB)->Threads(1)->Repetitions(10);
-*/
+
 int main(int argc, char **argv)
 {
   rclcpp::init(argc, argv);
@@ -43,3 +43,4 @@ int main(int argc, char **argv)
   benchmark::Shutdown();
   delete ptr;
 }
+*/
