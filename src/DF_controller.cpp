@@ -102,19 +102,19 @@ void PD_controller::run()
 {
   if (control_mode_ == ControlMode::UNSET)
   {
-    RCLCPP_WARN(this->get_logger(), "Control mode not set");
+    RCLCPP_WARN_ONCE(this->get_logger(), "Control mode not set");
     return;
   }
 
   if (!flags_.state_received)
   {
-    RCLCPP_WARN(this->get_logger(), "State not received yet");
+    RCLCPP_WARN_ONCE(this->get_logger(), "State not received yet");
     return;
   }
 
   if (!flags_.ref_generated)
   {
-    RCLCPP_WARN(this->get_logger(), "State changed, but ref not recived yet");
+    RCLCPP_WARN_ONCE(this->get_logger(), "State changed, but ref not recived yet");
     // PD_controller::reset_references();
     computeActions(ControlMode::HOVER);
   }
@@ -282,11 +282,6 @@ void PD_controller::computeActions(uint8_t control_mode)
   switch (control_mode)
   {  
   case ControlMode::HOVER:
-    RCLCPP_INFO(this->get_logger(), "HOVERING");
-    RCLCPP_INFO(this->get_logger(), "refs_[0][0] = %f", refs_[0][0]);
-    RCLCPP_INFO(this->get_logger(), "refs_[1][0] = %f", refs_[1][0]);
-    RCLCPP_INFO(this->get_logger(), "refs_[2][0] = %f", refs_[2][0]);
-    RCLCPP_INFO(this->get_logger(), "refs_[3][0] = %f", refs_[3][0]);
     F_des = PD_controller::computeForceDesiredByTraj();
     break;
 
@@ -299,7 +294,7 @@ void PD_controller::computeActions(uint8_t control_mode)
     break;
 
   case ControlMode::UNSET:
-    RCLCPP_WARN(this->get_logger(), "2: Trajectory not generated or control mode not set");
+    RCLCPP_WARN_ONCE(this->get_logger(), "2: Trajectory not generated or control mode not set");
     return;
     break;
 
@@ -350,19 +345,19 @@ bool PD_controller::setControlMode(const as2_msgs::msg::ControllerControlMode &m
 
   switch (msg.control_mode)
   {
-  case as2_msgs::msg::ControllerControlMode::HOVER:
+  case as2_msgs::msg::ControllerControlMode::HOVER_MODE:
   {
     control_mode_ = ControlMode::HOVER;
-    RCLCPP_INFO(this->get_logger(), "SPEED_MODE ENABLED");
+    RCLCPP_INFO(this->get_logger(), "HOVER_MODE ENABLED");
   }
   break;
-  case as2_msgs::msg::ControllerControlMode::TRAJECTORY:
+  case as2_msgs::msg::ControllerControlMode::TRAJECTORY_MODE:
   {
     control_mode_ = ControlMode::TRAJECTORY;
     RCLCPP_INFO(this->get_logger(), "POSITION_MODE ENABLED");
   }
   break;
-  case as2_msgs::msg::ControllerControlMode::SPEED:
+  case as2_msgs::msg::ControllerControlMode::SPEED_MODE:
   {
     control_mode_ = ControlMode::SPEED;
     RCLCPP_INFO(this->get_logger(), "SPEED_MODE ENABLED");
