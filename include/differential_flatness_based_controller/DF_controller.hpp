@@ -41,9 +41,8 @@
 #include <vector>
 
 // Eigen
-#include <Eigen/Dense>
 
-#include "Eigen/src/Core/Matrix.h"
+
 #include "as2_control_command_handlers/acro_control.hpp"
 #include "as2_core/node.hpp"
 #include "as2_core/names/topics.hpp"
@@ -61,9 +60,12 @@
 #include "as2_msgs/srv/set_controller_control_mode.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 
+#include <Eigen/Dense>
+#include "Eigen/src/Core/Matrix.h"
+
 #include "controller_plugin_base/controller_base.hpp"
 
-namespace controller_plugin_base
+namespace df_plugin
 {
   using Vector3d = Eigen::Vector3d;
 
@@ -215,8 +217,7 @@ namespace controller_plugin_base
   };
 };
 
-// #include <pluginlib/class_list_macros.hpp>
-
-// PLUGINLIB_EXPORT_CLASS(controller_plugins::PDController, controller_base::ControllerBase)
+#include <pluginlib/class_list_macros.hpp>
+PLUGINLIB_EXPORT_CLASS(df_plugin::PDController, controller_plugin_base::ControllerBase)
 
 #endif

@@ -36,7 +36,7 @@
 
 int main(int argc, char** argv)
 {
-  std::vector<controller_plugin_base::PDController*> controllers;
+  std::vector<df_plugin::PDController*> controllers;
   std::cout << "Hello World" << std::endl;
   // print array length
   std::cout << "Array length: " << controllers.size() << std::endl;

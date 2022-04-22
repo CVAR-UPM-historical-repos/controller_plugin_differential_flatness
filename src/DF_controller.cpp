@@ -30,7 +30,7 @@
 
 #include "differential_flatness_based_controller/DF_controller.hpp"
 
-namespace controller_plugin_base
+namespace df_plugin
 {
 
     void PDController::initialize(as2::Node *node_ptr)
