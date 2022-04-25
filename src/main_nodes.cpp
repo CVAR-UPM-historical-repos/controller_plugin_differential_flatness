@@ -32,7 +32,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "as2_core/core_functions.hpp"
 
-#include "differential_flatness_based_controller/DF_controller.hpp"
+#include "DF_controller.hpp"
 
 int main(int argc, char** argv)
 {

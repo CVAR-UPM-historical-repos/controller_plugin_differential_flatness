@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-set(PROJECT_NAME differential_flatness_based_controller)
-set(PLUGIN_NAME differential_flatness_based_controller_plugin)
+set(PROJECT_NAME controller_plugin_differential_flatness)
 project(${PROJECT_NAME})
 
 # Default to C99
@@ -28,7 +27,7 @@ set(PROJECT_DEPENDENCIES
   pluginlib
   as2_core
   as2_msgs
-  as2_control_command_handlers
+  # as2_control_command_handlers
   std_srvs
   controller_plugin_base
 )
@@ -39,26 +38,24 @@ endforeach()
 
 include_directories(
   include
+  include/${PROJECT_NAME}
   ${EIGEN3_INCLUDE_DIRS}
 )
 
-add_library(${PLUGIN_NAME} src/DF_controller.cpp)
-
-target_link_libraries(${PLUGIN_NAME} ${EIGEN3_LIBS})
-
-target_include_directories(${PLUGIN_NAME} PUBLIC
+add_library(${PROJECT_NAME} SHARED src/DF_controller.cpp )
+target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 
 ament_target_dependencies(
-  ${PLUGIN_NAME}
+  ${PROJECT_NAME}
   ${PROJECT_DEPENDENCIES}
 )
 
 pluginlib_export_plugin_description_file(controller_plugin_base plugins.xml)
 
 install(
-  TARGETS ${PLUGIN_NAME}
+  TARGETS ${PROJECT_NAME}
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
@@ -66,7 +63,7 @@ install(
 )
 
 ament_export_libraries(
-  ${PLUGIN_NAME}
+  ${PROJECT_NAME}
 )
 ament_export_targets(
   export_${PROJECT_NAME}

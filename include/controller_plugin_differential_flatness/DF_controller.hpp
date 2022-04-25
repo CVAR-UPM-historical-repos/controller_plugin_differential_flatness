@@ -65,7 +65,7 @@
 
 #include "controller_plugin_base/controller_base.hpp"
 
-namespace df_plugin
+namespace controller_plugin_differential_flatness 
 {
   using Vector3d = Eigen::Vector3d;
 
@@ -87,7 +87,7 @@ namespace df_plugin
   class PDController : public controller_plugin_base::ControllerBase
   {
     public:
-      PDController();
+      PDController(){};
       ~PDController(){};
 
     private:
@@ -216,8 +216,5 @@ namespace df_plugin
                      );
   };
 };
-
-#include <pluginlib/class_list_macros.hpp>
-PLUGINLIB_EXPORT_CLASS(df_plugin::PDController, controller_plugin_base::ControllerBase)
 
 #endif
