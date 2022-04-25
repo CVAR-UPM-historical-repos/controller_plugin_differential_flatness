@@ -22,8 +22,8 @@ set(PROJECT_DEPENDENCIES
   nav_msgs
   as2_core
   as2_msgs
-  as2_control_command_handlers
   std_srvs
+  as2_control_command_handlers
   Eigen3
 )
 
@@ -55,7 +55,7 @@ if(BUILD_TESTING)
   ament_cppcheck(src/ include/)
   ament_clang_format(src/ include/)
 
-  include(tests/profiling_cmake.txt)
+  # include(tests/profiling_cmake.txt)
 
 endif()
 

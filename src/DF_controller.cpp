@@ -58,7 +58,7 @@ PD_controller::PD_controller() : as2::Node("differential_flatness_controller", r
       this->generate_global_name(as2_names::topics::self_localization::odom),
       as2_names::topics::self_localization::qos,
       std::bind(&PD_controller::CallbackOdomTopic, this, std::placeholders::_1));
-  
+
   sub_traj_ = this->create_subscription<trajectory_msgs::msg::JointTrajectoryPoint>(
       this->generate_global_name(as2_names::topics::motion_reference::trajectory),
       as2_names::topics::motion_reference::qos,
@@ -100,7 +100,7 @@ void PD_controller::setup()
 
 void PD_controller::run()
 {
-  if (control_mode_ == ControlMode::UNSET)
+  if (control_mode_.control_mode == as2_msgs::msg::ControlMode::UNSET)
   {
     RCLCPP_WARN_ONCE(this->get_logger(), "Control mode not set");
     return;
@@ -115,10 +115,11 @@ void PD_controller::run()
   if (!flags_.ref_generated)
   {
     RCLCPP_WARN_ONCE(this->get_logger(), "State changed, but ref not recived yet");
-    // PD_controller::reset_references();
-    computeActions(ControlMode::HOVER);
+    as2_msgs::msg::ControlMode hover_control_mode;
+    hover_control_mode.control_mode = as2_msgs::msg::ControlMode::HOVER;
+    computeActions(hover_control_mode);
   }
-  else 
+  else
   {
     computeActions(control_mode_);
   }
@@ -251,7 +252,8 @@ Vector3d PD_controller::computeForceDesiredBySpeed()
   return F_des;
 }
 
-void PD_controller::reset_references() {
+void PD_controller::reset_references()
+{
 
   RCLCPP_INFO(this->get_logger(), "Resetting references");
 
@@ -276,24 +278,30 @@ void PD_controller::reset_references() {
   refs_[3][2] = 0.0f;
 }
 
-void PD_controller::computeActions(uint8_t control_mode)
+void PD_controller::computeActions(as2_msgs::msg::ControlMode control_mode)
 {
   Vector3d F_des;
-  switch (control_mode)
-  {  
-  case ControlMode::HOVER:
+  // RCLCPP_INFO_ONCE(this->get_logger(), "Computing actions with control mode: %d", control_mode.control_mode);
+  switch (control_mode.control_mode)
+  {
+  case as2_msgs::msg::ControlMode::HOVER:
+    // RCLCPP_INFO(this->get_logger(), "HOVERING");
+    // RCLCPP_INFO(this->get_logger(), "refs_[0][0] = %f", refs_[0][0]);
+    // RCLCPP_INFO(this->get_logger(), "refs_[1][0] = %f", refs_[1][0]);
+    // RCLCPP_INFO(this->get_logger(), "refs_[2][0] = %f", refs_[2][0]);
+    // RCLCPP_INFO(this->get_logger(), "refs_[3][0] = %f", refs_[3][0]);
     F_des = PD_controller::computeForceDesiredByTraj();
     break;
 
-  case ControlMode::TRAJECTORY:
+  case as2_msgs::msg::ControlMode::TRAJECTORY:
     F_des = PD_controller::computeForceDesiredByTraj();
     break;
 
-  case ControlMode::SPEED:
+  case as2_msgs::msg::ControlMode::SPEED:
     F_des = PD_controller::computeForceDesiredBySpeed();
     break;
 
-  case ControlMode::UNSET:
+  case as2_msgs::msg::ControlMode::UNSET:
     RCLCPP_WARN_ONCE(this->get_logger(), "2: Trajectory not generated or control mode not set");
     return;
     break;
@@ -336,38 +344,46 @@ void PD_controller::publishActions()
   acro_controller.sendAngleRatesWithThrust(u2[0], u2[1], u2[2], u1);
 };
 
-bool PD_controller::setControlMode(const as2_msgs::msg::ControllerControlMode &msg)
+bool PD_controller::setControlMode(const as2_msgs::msg::ControlMode &msg)
 {
   RCLCPP_INFO(this->get_logger(), "Setting controller control mode");
   PD_controller::reset_references();
 
   flags_.ref_generated = false;
 
-  switch (msg.control_mode)
-  {
-  case as2_msgs::msg::ControllerControlMode::HOVER_MODE:
-  {
-    control_mode_ = ControlMode::HOVER;
-    RCLCPP_INFO(this->get_logger(), "HOVER_MODE ENABLED");
-  }
-  break;
-  case as2_msgs::msg::ControllerControlMode::TRAJECTORY_MODE:
-  {
-    control_mode_ = ControlMode::TRAJECTORY;
-    RCLCPP_INFO(this->get_logger(), "POSITION_MODE ENABLED");
-  }
-  break;
-  case as2_msgs::msg::ControllerControlMode::SPEED_MODE:
-  {
-    control_mode_ = ControlMode::SPEED;
-    RCLCPP_INFO(this->get_logger(), "SPEED_MODE ENABLED");
-  }
-  break;
-  default:
-    RCLCPP_WARN(this->get_logger(), "CONTROL MODE %d NOT SUPPORTED", msg.control_mode);
-    control_mode_ = ControlMode::UNSET;
-    return false;
-  }
+  control_mode_.yaw_mode = msg.yaw_mode;
+  control_mode_.control_mode = msg.control_mode;
+  control_mode_.reference_frame = msg.reference_frame;
+
+  RCLCPP_INFO(this->get_logger(), "Yaw mode: %d", control_mode_.yaw_mode);
+  RCLCPP_INFO(this->get_logger(), "Control mode: %d", control_mode_.control_mode);
+  RCLCPP_INFO(this->get_logger(), "Reference frame: %d", control_mode_.reference_frame);
+
+  // switch (msg.control_mode)
+  // {
+  // case as2_msgs::msg::ControllerControlMode::HOVER:
+  // {
+  //   control_mode_ = ControlMode::HOVER;
+  //   RCLCPP_INFO(this->get_logger(), "SPEED_MODE ENABLED");
+  // }
+  // break;
+  // case as2_msgs::msg::ControllerControlMode::TRAJECTORY:
+  // {
+  //   control_mode_ = ControlMode::TRAJECTORY;
+  //   RCLCPP_INFO(this->get_logger(), "POSITION_MODE ENABLED");
+  // }
+  // break;
+  // case as2_msgs::msg::ControllerControlMode::SPEED:
+  // {
+  //   control_mode_ = ControlMode::SPEED;
+  //   RCLCPP_INFO(this->get_logger(), "SPEED_MODE ENABLED");
+  // }
+  // break;
+  // default:
+  //   RCLCPP_WARN(this->get_logger(), "CONTROL MODE %d NOT SUPPORTED", msg.control_mode);
+  //   control_mode_ = ControlMode::UNSET;
+  //   return false;
+  // }
   return true;
 };
 
@@ -401,10 +417,13 @@ rcl_interfaces::msg::SetParametersResult PD_controller::parametersCallback(
 void PD_controller::CallbackTrajTopic(
     const trajectory_msgs::msg::JointTrajectoryPoint::SharedPtr msg)
 {
-  if (control_mode_ != ControlMode::TRAJECTORY)
+  if (control_mode_.yaw_mode != as2_msgs::msg::ControlMode::YAW_ANGLE ||
+      control_mode_.control_mode != as2_msgs::msg::ControlMode::TRAJECTORY ||
+      control_mode_.reference_frame != as2_msgs::msg::ControlMode::LOCAL_ENU_FRAME)
   {
     return;
   }
+
   auto &traj_msg = *(msg.get());
   flags_.ref_generated = true;
 
@@ -415,7 +434,7 @@ void PD_controller::CallbackTrajTopic(
     refs_[i][2] = traj_msg.accelerations[i];
   }
 
-  RCLCPP_INFO(this->get_logger(), "Trajectory received");
+  RCLCPP_INFO_ONCE(this->get_logger(), "Trajectory received");
 
   /*
   Matrix:
@@ -429,10 +448,13 @@ void PD_controller::CallbackTrajTopic(
 void PD_controller::CallbackTwistTopic(
     const geometry_msgs::msg::TwistStamped::SharedPtr msg)
 {
-  if (control_mode_ != ControlMode::SPEED)
+  if (control_mode_.yaw_mode != as2_msgs::msg::ControlMode::YAW_SPEED ||
+      control_mode_.control_mode != as2_msgs::msg::ControlMode::SPEED ||
+      control_mode_.reference_frame != as2_msgs::msg::ControlMode::LOCAL_ENU_FRAME)
   {
     return;
   }
+
   auto &twist_msg = *(msg.get());
   flags_.ref_generated = true;
 
@@ -440,16 +462,6 @@ void PD_controller::CallbackTwistTopic(
   refs_[1][1] = twist_msg.twist.linear.y;
   refs_[2][1] = twist_msg.twist.linear.z;
   refs_[3][1] = twist_msg.twist.angular.z;
-  
-  // Yaw
-  refs_[3][0] = twist_msg.twist.angular.y;
-
-  // For position and speed, reset the reference to actual state
-  // for (int i = 0; i < 3; i++)
-  // {
-  //   refs_[i][0] = state_.pos[i];
-  //   refs_[i][2] = 0.0f;
-  // }
 
   RCLCPP_INFO(this->get_logger(), "Twist received");
 }

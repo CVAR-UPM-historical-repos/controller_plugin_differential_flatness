@@ -57,7 +57,7 @@
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include "trajectory_msgs/msg/joint_trajectory_point.hpp"
 
-#include "as2_msgs/msg/controller_control_mode.hpp"
+#include <as2_msgs/msg/control_mode.hpp>
 #include "as2_msgs/srv/set_controller_control_mode.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 
@@ -123,7 +123,7 @@ class PD_controller : public as2::Node {
 
     std::array<std::array<float, 3>, 4> refs_;
 
-    uint8_t control_mode_ = ControlMode::UNSET;
+    as2_msgs::msg::ControlMode control_mode_;
     std::unordered_map<std::string,double> parameters_;
     rclcpp::Service<as2_msgs::srv::SetControllerControlMode>::SharedPtr set_control_mode_srv_;
 
@@ -144,10 +144,10 @@ class PD_controller : public as2::Node {
 
     void reset_references();
 
-    void computeActions(uint8_t control_mode);
+    void computeActions(as2_msgs::msg::ControlMode control_mode);
     void publishActions();
 
-    bool setControlMode(const as2_msgs::msg::ControllerControlMode & msg);
+    bool setControlMode(const as2_msgs::msg::ControlMode & msg);
 
     /* --------------------------- CALLBACKS ---------------------------*/
     rcl_interfaces::msg::SetParametersResult parametersCallback(
