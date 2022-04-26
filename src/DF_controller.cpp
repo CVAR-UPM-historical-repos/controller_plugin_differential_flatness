@@ -321,8 +321,7 @@ namespace controller_plugin_differential_flatness
 
     switch (control_mode_in_.reference_frame)
     {
-    {
-    case as2::msg::ControlMode::LOCAL_ENU_FRAME:
+    case as2_msgs::msg::ControlMode::LOCAL_ENU_FRAME:
       PDController::getOutput(pose, twist, thrust, acro_, thrust_);
       break;
     
