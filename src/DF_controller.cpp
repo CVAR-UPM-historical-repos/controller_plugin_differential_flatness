@@ -166,7 +166,7 @@ void PDController::readParameters(std::vector<std::string> &params) {
       // parameters_.emplace(parameter_name, node_ptr_->get_parameter(parameter_name).as_double());
     }
   }
-
+  
   return;
 }
 
@@ -388,7 +388,18 @@ void PDController::computeTrajectoryControl(Vector3d &f_des) {
 void PDController::comnputeYawAngleControl(Vector3d &f_des, Vector3d &acro, float &thrust) {
   Vector3d zb_des = f_des.normalized();
 
-  Vector3d xc_des(cos(refs_[3][0]), sin(refs_[3][0]), 0);
+  float yaw_des = refs_[3][0];
+  float& yawdot_des = refs_[3][1];
+
+  // compute dt (in seconds)
+  static rclcpp::Time last_time = node_ptr_->now();
+  rclcpp::Time current_time = node_ptr_->now();
+  double dt = (current_time - last_time).nanoseconds() / 1.0e9;
+  last_time = current_time;
+
+  yaw_des += yawdot_des * dt;
+
+  Vector3d xc_des(cos(yaw_des), sin(yaw_des), 0);
 
   // Vector3d xc_des(cos(state_.rot[2]),sin(state_.rot[2]),0);
   Vector3d yb_des = zb_des.cross(xc_des).normalized();
