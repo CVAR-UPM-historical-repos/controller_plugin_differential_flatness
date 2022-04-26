@@ -31,237 +31,264 @@
 
 #include "DF_controller.hpp"
 
-namespace controller_plugin_differential_flatness {
+namespace controller_plugin_differential_flatness
+{
 
-void PDController::initialize(as2::Node *node_ptr) {
-  node_ptr_ = node_ptr;
+  void PDController::initialize(as2::Node *node_ptr)
+  {
+    node_ptr_ = node_ptr;
 
-  // Complete control mode table
-  control_mode_in_table_ = {{as2_msgs::msg::ControlMode::SPEED, true},
-                            {as2_msgs::msg::ControlMode::TRAJECTORY, true}};
+    PDController::readParameters(param_names_);
+    PDController::update_gains(parameters_);
 
-  control_mode_out_table_ = {{as2_msgs::msg::ControlMode::ACRO, true}};
+    // Free parameters name vector
+    param_names_ = std::vector<std::string>();
 
-  yaw_mode_in_table_ = {{as2_msgs::msg::ControlMode::YAW_ANGLE, true}};
+    PDController::initialize_references();
+    PDController::resetErrors();
+    PDController::resetCommands();
 
-  yaw_mode_out_table_ = {{as2_msgs::msg::ControlMode::YAW_ANGLE, true}};
+    last_time_ = node_ptr_->now();
 
-  reference_frame_in_table_ = {{as2_msgs::msg::ControlMode::LOCAL_ENU_FRAME, true}};
-
-  reference_frame_out_table_ = {{as2_msgs::msg::ControlMode::LOCAL_ENU_FRAME, true}};
-
-  PDController::readParameters(param_names_);
-  PDController::update_gains(parameters_);
-
-  // Free parameters name vector
-  param_names_ = std::vector<std::string>();
-
-  PDController::initialize_references();
-  PDController::resetErrors();
-  PDController::resetCommands();
-
-  return;
-};
-
-void PDController::updateState(const nav_msgs::msg::Odometry &odom) {
-  state_.pos[0] = odom.pose.pose.position.x;
-  state_.pos[1] = odom.pose.pose.position.y;
-  state_.pos[2] = odom.pose.pose.position.z;
-
-  state_.vel[0] = odom.twist.twist.linear.x;
-  state_.vel[1] = odom.twist.twist.linear.y;
-  state_.vel[2] = odom.twist.twist.linear.z;
-
-  Eigen::Quaterniond q(odom.pose.pose.orientation.w, odom.pose.pose.orientation.x,
-                       odom.pose.pose.orientation.y, odom.pose.pose.orientation.z);
-
-  Rot_matrix = q.toRotationMatrix();
-  state_.rot = Rot_matrix.eulerAngles(0, 1, 2);
-
-  flags_.state_received = true;
-
-  return;
-};
-
-void PDController::updateReference(const geometry_msgs::msg::TwistStamped &twist_msg) {
-  if (control_mode_in_.control_mode != as2_msgs::msg::ControlMode::SPEED) {
     return;
-  }
+  };
 
-  flags_.ref_generated = true;
+  void PDController::updateState(const nav_msgs::msg::Odometry &odom)
+  {
+    state_.pos[0] = odom.pose.pose.position.x;
+    state_.pos[1] = odom.pose.pose.position.y;
+    state_.pos[2] = odom.pose.pose.position.z;
 
-  refs_[0][1] = twist_msg.twist.linear.x;
-  refs_[1][1] = twist_msg.twist.linear.y;
-  refs_[2][1] = twist_msg.twist.linear.z;
-  refs_[3][1] = twist_msg.twist.angular.z;
+    state_.vel[0] = odom.twist.twist.linear.x;
+    state_.vel[1] = odom.twist.twist.linear.y;
+    state_.vel[2] = odom.twist.twist.linear.z;
 
-  // Yaw
-  refs_[3][0] = twist_msg.twist.angular.y;
+    Eigen::Quaterniond q(odom.pose.pose.orientation.w, odom.pose.pose.orientation.x,
+                         odom.pose.pose.orientation.y, odom.pose.pose.orientation.z);
 
-  return;
-};
+    Rot_matrix = q.toRotationMatrix();
+    state_.rot = Rot_matrix.eulerAngles(0, 1, 2);
 
-void PDController::updateReference(const trajectory_msgs::msg::JointTrajectoryPoint &traj_msg) {
-  if (control_mode_in_.control_mode != as2_msgs::msg::ControlMode::TRAJECTORY) {
+    flags_.state_received = true;
+
     return;
-  }
+  };
 
-  flags_.ref_generated = true;
-
-  for (int i = 0; i < 4; i++) {
-    refs_[i][0] = traj_msg.positions[i];
-    refs_[i][1] = traj_msg.velocities[i];
-    refs_[i][2] = traj_msg.accelerations[i];
-  }
-
-  return;
-
-  //   Matrix:
-  //   | x_ref_x   | v_ref_x   | a_ref_x   |
-  //   | x_ref_y   | v_ref_y   | a_ref_y   |
-  //   | x_ref_z   | v_ref_z   | a_ref_z   |
-  //   | x_ref_yaw | v_ref_yaw | a_ref_yaw |
-};
-
-void PDController::computeOutput(geometry_msgs::msg::PoseStamped &pose,
-                                 geometry_msgs::msg::TwistStamped &twist,
-                                 as2_msgs::msg::Thrust &thrust) {
-  if (!flags_.state_received) {
-    RCLCPP_WARN_ONCE(node_ptr_->get_logger(), "State not received yet");
-    return;
-  }
-
-  if (!flags_.ref_generated) {
-    RCLCPP_WARN_ONCE(node_ptr_->get_logger(), "State changed, but ref not recived yet");
-    PDController::computeHOVER(pose, twist, thrust);
-  } else {
-    PDController::computeActions(pose, twist, thrust);
-  }
-
-  return;
-};
-
-bool PDController::setMode(const as2_msgs::msg::ControlMode &in_mode,
-                           const as2_msgs::msg::ControlMode &out_mode) {
-  control_mode_in_ = in_mode;
-  control_mode_out_ = out_mode;
-  PDController::reset_references();
-  PDController::resetErrors();
-  return true;
-};
-
-void PDController::readParameters(std::vector<std::string> &params) {
-  for (auto it = std::begin(params); it != std::end(params); ++it) {
-    node_ptr_->declare_parameter(*it);
-    parameters_.emplace(*it, 0.0);
-  }
-
-  for (auto &parameter_name :
-       node_ptr_->list_parameters({}, rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE)
-           .names) {
-    // RCLCPP_INFO(this->get_logger(), "Parameter: %s", parameter_name.c_str());
-    if (!parameters_.count(parameter_name) && node_ptr_->get_parameter(parameter_name).get_type() ==
-                                                  rclcpp::ParameterType::PARAMETER_DOUBLE) {
-      parameters_[parameter_name] = node_ptr_->get_parameter(parameter_name).as_double();
-      // parameters_.emplace(parameter_name, node_ptr_->get_parameter(parameter_name).as_double());
+  void PDController::updateReference(const geometry_msgs::msg::TwistStamped &twist_msg)
+  {
+    if (control_mode_in_.control_mode != as2_msgs::msg::ControlMode::SPEED)
+    {
+      return;
     }
+
+    flags_.ref_generated = true;
+
+    refs_[0][1] = twist_msg.twist.linear.x;
+    refs_[1][1] = twist_msg.twist.linear.y;
+    refs_[2][1] = twist_msg.twist.linear.z;
+    refs_[3][1] = twist_msg.twist.angular.z;
+
+    // Yaw
+    refs_[3][0] = twist_msg.twist.angular.y;
+
+    return;
+  };
+
+  void PDController::updateReference(const trajectory_msgs::msg::JointTrajectoryPoint &traj_msg)
+  {
+    if (control_mode_in_.control_mode != as2_msgs::msg::ControlMode::TRAJECTORY)
+    {
+      return;
+    }
+
+    flags_.ref_generated = true;
+
+    for (int i = 0; i < 4; i++)
+    {
+      refs_[i][0] = traj_msg.positions[i];
+      refs_[i][1] = traj_msg.velocities[i];
+      refs_[i][2] = traj_msg.accelerations[i];
+    }
+
+    return;
+
+    //   Matrix:
+    //   | x_ref_x   | v_ref_x   | a_ref_x   |
+    //   | x_ref_y   | v_ref_y   | a_ref_y   |
+    //   | x_ref_z   | v_ref_z   | a_ref_z   |
+    //   | x_ref_yaw | v_ref_yaw | a_ref_yaw |
+  };
+
+  void PDController::computeOutput(geometry_msgs::msg::PoseStamped &pose,
+                                   geometry_msgs::msg::TwistStamped &twist,
+                                   as2_msgs::msg::Thrust &thrust)
+  {
+    if (!flags_.state_received)
+    {
+      RCLCPP_WARN_ONCE(node_ptr_->get_logger(), "State not received yet");
+      return;
+    }
+
+    if (!flags_.ref_generated)
+    {
+      RCLCPP_WARN_ONCE(node_ptr_->get_logger(), "State changed, but ref not recived yet");
+      PDController::computeHOVER(pose, twist, thrust);
+    }
+    else
+    {
+      PDController::computeActions(pose, twist, thrust);
+    }
+
+    return;
+  };
+
+  bool PDController::setMode(const as2_msgs::msg::ControlMode &in_mode,
+                             const as2_msgs::msg::ControlMode &out_mode)
+  {
+    
+    // TODO: Check if assignment is valid
+    // control_mode_in_ = in_mode;
+    // control_mode_out_ = out_mode;
+    
+    control_mode_in_.yaw_mode = in_mode.yaw_mode;
+    control_mode_in_.control_mode = in_mode.control_mode;
+    control_mode_in_.reference_frame = in_mode.reference_frame;
+
+    control_mode_out_.yaw_mode = out_mode.yaw_mode;
+    control_mode_out_.control_mode = out_mode.control_mode;
+    control_mode_out_.reference_frame = out_mode.reference_frame;
+
+    last_time_ = node_ptr_->now();
+
+    PDController::reset_references();
+    PDController::resetErrors();
+    return true;
+  };
+
+  void PDController::readParameters(std::vector<std::string> &params)
+  {
+    for (auto it = std::begin(params); it != std::end(params); ++it)
+    {
+      node_ptr_->declare_parameter(*it);
+      parameters_.emplace(*it, 0.0);
+    }
+
+    for (auto &parameter_name :
+         node_ptr_->list_parameters({}, rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE)
+             .names)
+    {
+      // RCLCPP_INFO(this->get_logger(), "Parameter: %s", parameter_name.c_str());
+      if (!parameters_.count(parameter_name) && node_ptr_->get_parameter(parameter_name).get_type() ==
+                                                    rclcpp::ParameterType::PARAMETER_DOUBLE)
+      {
+        parameters_[parameter_name] = node_ptr_->get_parameter(parameter_name).as_double();
+        // parameters_.emplace(parameter_name, node_ptr_->get_parameter(parameter_name).as_double());
+      }
+    }
+
+    return;
   }
-  
-  return;
-}
 
-void PDController::update_gains(const std::unordered_map<std::string, double> &params) {
-  // for (auto it = params.begin(); it != params.end(); it++) {
-  //   RCLCPP_INFO(this->get_logger(), "Updating gains: %s = %f", it->first.c_str(), it->second);
-  // }
+  void PDController::update_gains(const std::unordered_map<std::string, double> &params)
+  {
+    // for (auto it = params.begin(); it != params.end(); it++) {
+    //   RCLCPP_INFO(this->get_logger(), "Updating gains: %s = %f", it->first.c_str(), it->second);
+    // }
 
-  Eigen::Vector3d speed_Kp_lin(params.at("speed_following.speed_Kp.x"),
-                               params.at("speed_following.speed_Kp.y"),
-                               params.at("speed_following.speed_Kp.z"));
-  Eigen::Vector3d speed_Kd_lin(params.at("speed_following.speed_Kd.x"),
-                               params.at("speed_following.speed_Kd.y"),
-                               params.at("speed_following.speed_Kd.z"));
-  Eigen::Vector3d speed_Ki_lin(params.at("speed_following.speed_Ki.x"),
-                               params.at("speed_following.speed_Ki.y"),
-                               params.at("speed_following.speed_Ki.z"));
+    Eigen::Vector3d speed_Kp_lin(params.at("speed_following.speed_Kp.x"),
+                                 params.at("speed_following.speed_Kp.y"),
+                                 params.at("speed_following.speed_Kp.z"));
+    Eigen::Vector3d speed_Kd_lin(params.at("speed_following.speed_Kd.x"),
+                                 params.at("speed_following.speed_Kd.y"),
+                                 params.at("speed_following.speed_Kd.z"));
+    Eigen::Vector3d speed_Ki_lin(params.at("speed_following.speed_Ki.x"),
+                                 params.at("speed_following.speed_Ki.y"),
+                                 params.at("speed_following.speed_Ki.z"));
 
-  Eigen::Vector3d traj_Kp_lin(params.at("trajectory_following.position_Kp.x"),
-                              params.at("trajectory_following.position_Kp.y"),
-                              params.at("trajectory_following.position_Kp.z"));
-  Eigen::Vector3d traj_Kd_lin(params.at("trajectory_following.position_Kd.x"),
-                              params.at("trajectory_following.position_Kd.y"),
-                              params.at("trajectory_following.position_Kd.z"));
-  Eigen::Vector3d traj_Ki_lin(params.at("trajectory_following.position_Ki.x"),
-                              params.at("trajectory_following.position_Ki.y"),
-                              params.at("trajectory_following.position_Ki.z"));
+    Eigen::Vector3d traj_Kp_lin(params.at("trajectory_following.position_Kp.x"),
+                                params.at("trajectory_following.position_Kp.y"),
+                                params.at("trajectory_following.position_Kp.z"));
+    Eigen::Vector3d traj_Kd_lin(params.at("trajectory_following.position_Kd.x"),
+                                params.at("trajectory_following.position_Kd.y"),
+                                params.at("trajectory_following.position_Kd.z"));
+    Eigen::Vector3d traj_Ki_lin(params.at("trajectory_following.position_Ki.x"),
+                                params.at("trajectory_following.position_Ki.y"),
+                                params.at("trajectory_following.position_Ki.z"));
 
-  Eigen::Vector3d Kp_ang(params.at("angular_speed_controller.angular_gain.x"),
-                         params.at("angular_speed_controller.angular_gain.y"),
-                         params.at("angular_speed_controller.angular_gain.z"));
+    Eigen::Vector3d Kp_ang(params.at("angular_speed_controller.angular_gain.x"),
+                           params.at("angular_speed_controller.angular_gain.y"),
+                           params.at("angular_speed_controller.angular_gain.z"));
 
-  traj_Kp_lin_mat = traj_Kp_lin.asDiagonal();
-  traj_Kd_lin_mat = traj_Kd_lin.asDiagonal();
-  traj_Ki_lin_mat = traj_Ki_lin.asDiagonal();
+    traj_Kp_lin_mat = traj_Kp_lin.asDiagonal();
+    traj_Kd_lin_mat = traj_Kd_lin.asDiagonal();
+    traj_Ki_lin_mat = traj_Ki_lin.asDiagonal();
 
-  speed_Kp_lin_mat = speed_Kp_lin.asDiagonal();
-  speed_Kd_lin_mat = speed_Kd_lin.asDiagonal();
-  speed_Ki_lin_mat = speed_Ki_lin.asDiagonal();
+    speed_Kp_lin_mat = speed_Kp_lin.asDiagonal();
+    speed_Kd_lin_mat = speed_Kd_lin.asDiagonal();
+    speed_Ki_lin_mat = speed_Ki_lin.asDiagonal();
 
-  Kp_ang_mat = Kp_ang.asDiagonal();
+    Kp_ang_mat = Kp_ang.asDiagonal();
 
-  mass = params.at("uav_mass");
-  antiwindup_cte_ = params.at("antiwindup_cte");
+    mass = params.at("uav_mass");
+    antiwindup_cte_ = params.at("antiwindup_cte");
 
-  return;
-};
+    return;
+  };
 
-void PDController::initialize_references() {
-  // set all refs to zefs
-  for (auto dof : refs_) {
-    for (auto elem : dof) elem = 0.0f;
-  }
+  void PDController::initialize_references()
+  {
+    // set all refs to zefs
+    for (auto dof : refs_)
+    {
+      for (auto elem : dof)
+        elem = 0.0f;
+    }
 
-  return;
-};
+    return;
+  };
 
-void PDController::reset_references() {
-  RCLCPP_INFO(node_ptr_->get_logger(), "Resetting references");
+  void PDController::reset_references()
+  {
+    RCLCPP_INFO(node_ptr_->get_logger(), "Resetting references");
 
-  // Set errors to zero
-  accum_error_.setZero();
+    // Set errors to zero
+    accum_error_.setZero();
 
-  // Set reference to current state
-  refs_[0][0] = state_.pos[0];
-  refs_[1][0] = state_.pos[1];
-  refs_[2][0] = state_.pos[2];
+    // Set reference to current state
+    refs_[0][0] = state_.pos[0];
+    refs_[1][0] = state_.pos[1];
+    refs_[2][0] = state_.pos[2];
 
-  refs_[3][0] = state_.rot[2];
+    refs_[3][0] = state_.rot[2];
 
-  refs_[0][1] = 0.0f;
-  refs_[1][1] = 0.0f;
-  refs_[2][1] = 0.0f;
-  refs_[3][1] = 0.0f;
+    refs_[0][1] = 0.0f;
+    refs_[1][1] = 0.0f;
+    refs_[2][1] = 0.0f;
+    refs_[3][1] = 0.0f;
 
-  refs_[0][2] = 0.0f;
-  refs_[1][2] = 0.0f;
-  refs_[2][2] = 0.0f;
-  refs_[3][2] = 0.0f;
+    refs_[0][2] = 0.0f;
+    refs_[1][2] = 0.0f;
+    refs_[2][2] = 0.0f;
+    refs_[3][2] = 0.0f;
 
-  return;
-};
+    return;
+  };
 
-void PDController::resetErrors() {
-  // Set errors to zero
-  accum_error_.setZero();
-  return;
-};
+  void PDController::resetErrors()
+  {
+    // Set errors to zero
+    accum_error_.setZero();
+    return;
+  };
 
-void PDController::computeActions(geometry_msgs::msg::PoseStamped &pose,
-                                  geometry_msgs::msg::TwistStamped &twist,
-                                  as2_msgs::msg::Thrust &thrust) {
-  PDController::resetCommands();
+  void PDController::computeActions(geometry_msgs::msg::PoseStamped &pose,
+                                    geometry_msgs::msg::TwistStamped &twist,
+                                    as2_msgs::msg::Thrust &thrust)
+  {
+    PDController::resetCommands();
 
-  switch (control_mode_in_.control_mode) {
+    switch (control_mode_in_.control_mode)
+    {
     case as2_msgs::msg::ControlMode::HOVER:
       PDController::computeHOVER(pose, twist, thrust);
       return;
@@ -276,174 +303,224 @@ void PDController::computeActions(geometry_msgs::msg::PoseStamped &pose,
       RCLCPP_ERROR_ONCE(node_ptr_->get_logger(), "Unknown control mode");
       return;
       break;
-  }
+    }
 
-  switch (control_mode_in_.yaw_mode) {
+    switch (control_mode_in_.yaw_mode)
+    {
     case as2_msgs::msg::ControlMode::YAW_ANGLE:
-      PDController::comnputeYawAngleControl(f_des_, acro_, thrust_);
+      PDController::computeYawAngleControl(f_des_, acro_, thrust_);
       break;
-
+    case as2_msgs::msg::ControlMode::YAW_SPEED:
+      PDController::computeYawSpeedControl(f_des_, acro_, thrust_);
+      break;
     default:
       RCLCPP_ERROR_ONCE(node_ptr_->get_logger(), "Unknown yaw mode");
       return;
       break;
+    }
+
+    switch (control_mode_in_.reference_frame)
+    {
+    {
+    case as2::msg::ControlMode::LOCAL_ENU_FRAME:
+      PDController::getOutput(pose, twist, thrust, acro_, thrust_);
+      break;
+    
+    default:
+      RCLCPP_ERROR_ONCE(node_ptr_->get_logger(), "Unknown reference frame");
+      return;
+      break;
+    }
+    
+    return;
+  };
+
+  void PDController::resetCommands()
+  {
+    f_des_.setZero();
+    acro_.setZero();
+    thrust_ = 0.0f;
   }
 
-  PDController::getOutput(pose, twist, thrust, acro_, thrust_);
-
-  return;
-};
-
-void PDController::resetCommands() {
-  f_des_.setZero();
-  acro_.setZero();
-  thrust_ = 0.0f;
-}
-
-void PDController::computeHOVER(geometry_msgs::msg::PoseStamped &pose,
-                                geometry_msgs::msg::TwistStamped &twist,
-                                as2_msgs::msg::Thrust &thrust) {
-  PDController::resetCommands();
-  PDController::computeTrajectoryControl(f_des_);
-  PDController::comnputeYawAngleControl(f_des_, acro_, thrust_);
-  PDController::getOutput(pose, twist, thrust, acro_, thrust_);
-  return;
-}
-
-void PDController::computeSpeedControl(Vector3d &f_des) {
-  Vector3d rdot(state_.vel[0], state_.vel[1], state_.vel[2]);
-  Vector3d rdot_t(refs_[0][1], refs_[1][1], refs_[2][1]);
-
-  Vector3d vel_error_contribution;
-  Vector3d dvel_error_contribution;
-  Vector3d accum_vel_error_contribution;
-
-  // compute vel error contribution
-  Vector3d e_v = rdot_t - rdot;
-  vel_error_contribution = speed_Kp_lin_mat * e_v;
-
-  // compute dt
-  static rclcpp::Time last_time = node_ptr_->now();
-  rclcpp::Time current_time = node_ptr_->now();
-  double dt = (current_time - last_time).nanoseconds() / 1.0e9;
-  last_time = current_time;
-
-  static Vector3d last_e_v = e_v;
-  const double alpha = 0.1;
-  static Vector3d filtered_d_e_v = e_v;
-
-  Vector3d inc_e_v = (e_v - last_e_v);
-  filtered_d_e_v = alpha * inc_e_v + (1 - alpha) * filtered_d_e_v;
-  last_e_v = e_v;
-
-  // compute dvel error contribution
-  dvel_error_contribution = speed_Kd_lin_mat * filtered_d_e_v / dt;
-
-  // compute accum_error
-  accum_error_ += e_v * dt;
-
-  // compute antiwindup
-  for (short j = 0; j < 3; j++) {
-    float antiwindup_value = antiwindup_cte_ / speed_Ki_lin_mat.diagonal()[j];
-    accum_error_[j] = (accum_error_[j] > antiwindup_value) ? antiwindup_value : accum_error_[j];
-    accum_error_[j] = (accum_error_[j] < -antiwindup_value) ? -antiwindup_value : accum_error_[j];
+  void PDController::computeHOVER(geometry_msgs::msg::PoseStamped &pose,
+                                  geometry_msgs::msg::TwistStamped &twist,
+                                  as2_msgs::msg::Thrust &thrust)
+  {
+    PDController::resetCommands();
+    PDController::computeTrajectoryControl(f_des_);
+    PDController::computeYawAngleControl(f_des_, acro_, thrust_);
+    PDController::getOutput(pose, twist, thrust, acro_, thrust_);
+    return;
   }
 
-  // compute accum_vel_error_contribution
-  accum_vel_error_contribution = speed_Ki_lin_mat * accum_error_;
+  void PDController::computeSpeedControl(Vector3d &f_des)
+  {
+    Vector3d rdot(state_.vel[0], state_.vel[1], state_.vel[2]);
+    Vector3d rdot_t(refs_[0][1], refs_[1][1], refs_[2][1]);
 
-  // compute a_des
-  Vector3d a_des = vel_error_contribution + dvel_error_contribution + accum_vel_error_contribution;
+    Vector3d vel_error_contribution;
+    Vector3d dvel_error_contribution;
+    Vector3d accum_vel_error_contribution;
 
-  // compute F_des
-  f_des = mass * a_des + mass * gravitational_accel;
+    // compute vel error contribution
+    Vector3d e_v = rdot_t - rdot;
+    vel_error_contribution = speed_Kp_lin_mat * e_v;
 
-  return;
-};
+    // compute dt
+    static rclcpp::Time last_time = node_ptr_->now();
+    rclcpp::Time current_time = node_ptr_->now();
+    double dt = (current_time - last_time).nanoseconds() / 1.0e9;
+    last_time = current_time;
 
-void PDController::computeTrajectoryControl(Vector3d &f_des) {
-  Vector3d r(state_.pos[0], state_.pos[1], state_.pos[2]);
-  Vector3d rdot(state_.vel[0], state_.vel[1], state_.vel[2]);
-  Vector3d r_t(refs_[0][0], refs_[1][0], refs_[2][0]);
-  Vector3d rdot_t(refs_[0][1], refs_[1][1], refs_[2][1]);
-  Vector3d rddot_t(refs_[0][2], refs_[1][2], refs_[2][2]);
+    static Vector3d last_e_v = e_v;
+    const double alpha = 0.1;
+    static Vector3d filtered_d_e_v = e_v;
 
-  Vector3d e_p = r - r_t;
-  Vector3d e_v = rdot - rdot_t;
+    Vector3d inc_e_v = (e_v - last_e_v);
+    filtered_d_e_v = alpha * inc_e_v + (1 - alpha) * filtered_d_e_v;
+    last_e_v = e_v;
 
-  accum_error_ += e_p;
+    // compute dvel error contribution
+    dvel_error_contribution = speed_Kd_lin_mat * filtered_d_e_v / dt;
 
-  for (short j = 0; j < 3; j++) {
-    float antiwindup_value = antiwindup_cte_ / traj_Ki_lin_mat.diagonal()[j];
-    accum_error_[j] = (accum_error_[j] > antiwindup_value) ? antiwindup_value : accum_error_[j];
-    accum_error_[j] = (accum_error_[j] < -antiwindup_value) ? -antiwindup_value : accum_error_[j];
+    // compute accum_error
+    accum_error_ += e_v * dt;
+
+    // compute antiwindup
+    for (short j = 0; j < 3; j++)
+    {
+      float antiwindup_value = antiwindup_cte_ / speed_Ki_lin_mat.diagonal()[j];
+      accum_error_[j] = (accum_error_[j] > antiwindup_value) ? antiwindup_value : accum_error_[j];
+      accum_error_[j] = (accum_error_[j] < -antiwindup_value) ? -antiwindup_value : accum_error_[j];
+    }
+
+    // compute accum_vel_error_contribution
+    accum_vel_error_contribution = speed_Ki_lin_mat * accum_error_;
+
+    // compute a_des
+    Vector3d a_des = vel_error_contribution + dvel_error_contribution + accum_vel_error_contribution;
+
+    // compute F_des
+    f_des = mass * a_des + mass * gravitational_accel;
+
+    return;
+  };
+
+  void PDController::computeTrajectoryControl(Vector3d &f_des)
+  {
+    Vector3d r(state_.pos[0], state_.pos[1], state_.pos[2]);
+    Vector3d rdot(state_.vel[0], state_.vel[1], state_.vel[2]);
+    Vector3d r_t(refs_[0][0], refs_[1][0], refs_[2][0]);
+    Vector3d rdot_t(refs_[0][1], refs_[1][1], refs_[2][1]);
+    Vector3d rddot_t(refs_[0][2], refs_[1][2], refs_[2][2]);
+
+    Vector3d e_p = r - r_t;
+    Vector3d e_v = rdot - rdot_t;
+
+    accum_error_ += e_p;
+
+    for (short j = 0; j < 3; j++)
+    {
+      float antiwindup_value = antiwindup_cte_ / traj_Ki_lin_mat.diagonal()[j];
+      accum_error_[j] = (accum_error_[j] > antiwindup_value) ? antiwindup_value : accum_error_[j];
+      accum_error_[j] = (accum_error_[j] < -antiwindup_value) ? -antiwindup_value : accum_error_[j];
+    }
+
+    f_des = -traj_Kp_lin_mat * e_p - traj_Ki_lin_mat * accum_error_ - traj_Kd_lin_mat * e_v +
+            mass * gravitational_accel + mass * rddot_t;
+
+    return;
+  };
+
+  void PDController::computeYawAngleControl(Vector3d &f_des, Vector3d &acro, float &thrust)
+  {
+    Vector3d zb_des = f_des.normalized();
+
+    Vector3d xc_des(cos(refs_[3][0]), sin(refs_[3][0]), 0);
+
+    // Vector3d xc_des(cos(state_.rot[2]),sin(state_.rot[2]),0);
+    Vector3d yb_des = zb_des.cross(xc_des).normalized();
+    Vector3d xb_des = yb_des.cross(zb_des).normalized();
+
+    Eigen::Matrix3d R_des;
+    R_des.col(0) = xb_des;
+    R_des.col(1) = yb_des;
+    R_des.col(2) = zb_des;
+
+    Eigen::Matrix3d Mat_e_rot = (R_des.transpose() * Rot_matrix - Rot_matrix.transpose() * R_des);
+
+    Vector3d V_e_rot(Mat_e_rot(2, 1), Mat_e_rot(0, 2), Mat_e_rot(1, 0));
+    Vector3d E_rot = (1.0f / 2.0f) * V_e_rot;
+
+    thrust = (float)f_des.dot(Rot_matrix.col(2).normalized());
+
+    Vector3d outputs = -Kp_ang_mat * E_rot;
+
+    acro(0) = outputs(0); // ROLL
+    acro(1) = outputs(1); // PITCH
+    acro(2) = outputs(2); // YAW
+
+    return;
+  };
+
+  void PDController::computeYawSpeedControl(Vector3d &f_des, Vector3d &acro, float &thrust)
+  {
+    Vector3d zb_des = f_des.normalized();
+
+    float yaw_state = state_.rot[2];
+    float yawdot_ref = refs_[3][1];
+    rclcpp::Time current_time = node_ptr_->now();
+
+    double dt = (current_time - last_time_).nanoseconds() / 1.0e9;
+    last_time_ = current_time;
+
+    float yaw_des = yaw_state + yawdot_ref * dt;
+
+    Vector3d xc_des(cos(yaw_des), sin(yaw_des), 0);
+
+    // Vector3d xc_des(cos(state_.rot[2]),sin(state_.rot[2]),0);
+    Vector3d yb_des = zb_des.cross(xc_des).normalized();
+    Vector3d xb_des = yb_des.cross(zb_des).normalized();
+
+    Eigen::Matrix3d R_des;
+    R_des.col(0) = xb_des;
+    R_des.col(1) = yb_des;
+    R_des.col(2) = zb_des;
+
+    Eigen::Matrix3d Mat_e_rot = (R_des.transpose() * Rot_matrix - Rot_matrix.transpose() * R_des);
+
+    Vector3d V_e_rot(Mat_e_rot(2, 1), Mat_e_rot(0, 2), Mat_e_rot(1, 0));
+    Vector3d E_rot = (1.0f / 2.0f) * V_e_rot;
+
+    thrust = (float)f_des.dot(Rot_matrix.col(2).normalized());
+
+    Vector3d outputs = -Kp_ang_mat * E_rot;
+
+    acro(0) = outputs(0); // ROLL
+    acro(1) = outputs(1); // PITCH
+    acro(2) = outputs(2); // YAW
+
+    return;
+  };
+
+  void PDController::getOutput(geometry_msgs::msg::PoseStamped &pose_msg,
+                               geometry_msgs::msg::TwistStamped &twist_msg,
+                               as2_msgs::msg::Thrust &thrust_msg, Vector3d &acro, float &thrust)
+  {
+    twist_msg.header.stamp = node_ptr_->now();
+
+    twist_msg.twist.angular.x = acro(0);
+    twist_msg.twist.angular.y = acro(1);
+    twist_msg.twist.angular.z = acro(2);
+
+    thrust_msg.header.stamp = node_ptr_->now();
+
+    thrust_msg.thrust = thrust;
+
+    return;
   }
-
-  f_des = -traj_Kp_lin_mat * e_p - traj_Ki_lin_mat * accum_error_ - traj_Kd_lin_mat * e_v +
-          mass * gravitational_accel + mass * rddot_t;
-
-  return;
-};
-
-void PDController::comnputeYawAngleControl(Vector3d &f_des, Vector3d &acro, float &thrust) {
-  Vector3d zb_des = f_des.normalized();
-
-  float yaw_des = refs_[3][0];
-  float& yawdot_des = refs_[3][1];
-
-  // compute dt (in seconds)
-  static rclcpp::Time last_time = node_ptr_->now();
-  rclcpp::Time current_time = node_ptr_->now();
-  double dt = (current_time - last_time).nanoseconds() / 1.0e9;
-  last_time = current_time;
-
-  yaw_des += yawdot_des * dt;
-
-  Vector3d xc_des(cos(yaw_des), sin(yaw_des), 0);
-
-  // Vector3d xc_des(cos(state_.rot[2]),sin(state_.rot[2]),0);
-  Vector3d yb_des = zb_des.cross(xc_des).normalized();
-  Vector3d xb_des = yb_des.cross(zb_des).normalized();
-
-  Eigen::Matrix3d R_des;
-  R_des.col(0) = xb_des;
-  R_des.col(1) = yb_des;
-  R_des.col(2) = zb_des;
-
-  Eigen::Matrix3d Mat_e_rot = (R_des.transpose() * Rot_matrix - Rot_matrix.transpose() * R_des);
-
-  Vector3d V_e_rot(Mat_e_rot(2, 1), Mat_e_rot(0, 2), Mat_e_rot(1, 0));
-  Vector3d E_rot = (1.0f / 2.0f) * V_e_rot;
-
-  thrust = (float)f_des.dot(Rot_matrix.col(2).normalized());
-
-  Vector3d outputs = -Kp_ang_mat * E_rot;
-
-  acro(0) = outputs(0);  // ROLL
-  acro(1) = outputs(1);  // PITCH
-  acro(2) = outputs(2);  // YAW
-
-  return;
-};
-
-void PDController::getOutput(geometry_msgs::msg::PoseStamped &pose_msg,
-                             geometry_msgs::msg::TwistStamped &twist_msg,
-                             as2_msgs::msg::Thrust &thrust_msg, Vector3d &acro, float &thrust) {
-  twist_msg.header.stamp = node_ptr_->now();
-
-  twist_msg.twist.angular.x = acro(0);
-  twist_msg.twist.angular.y = acro(1);
-  twist_msg.twist.angular.z = acro(2);
-
-  thrust_msg.header.stamp = node_ptr_->now();
-
-  thrust_msg.thrust = thrust;
-
-  return;
-}
-}  // namespace controller_plugin_differential_flatness
+} // namespace controller_plugin_differential_flatness
 
 #include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(controller_plugin_differential_flatness::PDController,
                        controller_plugin_base::ControllerBase)
-

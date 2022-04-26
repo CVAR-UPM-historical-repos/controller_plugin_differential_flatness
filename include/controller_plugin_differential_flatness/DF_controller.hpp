@@ -42,7 +42,6 @@
 
 // Eigen
 
-
 // #include "as2_control_command_handlers/acro_control.hpp"
 #include "as2_core/node.hpp"
 #include "as2_core/names/topics.hpp"
@@ -56,7 +55,6 @@
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include "trajectory_msgs/msg/joint_trajectory_point.hpp"
 
-#include "as2_msgs/msg/controller_control_mode.hpp"
 #include "as2_msgs/srv/set_controller_control_mode.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 
@@ -65,7 +63,7 @@
 
 #include "controller_plugin_base/controller_base.hpp"
 
-namespace controller_plugin_differential_flatness 
+namespace controller_plugin_differential_flatness
 {
   using Vector3d = Eigen::Vector3d;
 
@@ -86,82 +84,73 @@ namespace controller_plugin_differential_flatness
 
   class PDController : public controller_plugin_base::ControllerBase
   {
-    public:
-      PDController(){};
-      ~PDController(){};
+  public:
+    PDController(){};
+    ~PDController(){};
 
-    private:
-      as2::Node* node_ptr_;
+  private:
+    as2::Node *node_ptr_;
 
-    public:
-      void initialize(as2::Node *node_ptr);
+  public:
+    void initialize(as2::Node *node_ptr);
 
-      void updateState(const nav_msgs::msg::Odometry &odom);
+    void updateState(const nav_msgs::msg::Odometry &odom);
 
-      void updateReference(const geometry_msgs::msg::PoseStamped &ref){};
-      void updateReference(const geometry_msgs::msg::TwistStamped &ref);
-      void updateReference(const trajectory_msgs::msg::JointTrajectoryPoint &ref);
-      void updateReference(const as2_msgs::msg::Thrust &ref){};
+    void updateReference(const geometry_msgs::msg::PoseStamped &ref){};
+    void updateReference(const geometry_msgs::msg::TwistStamped &ref);
+    void updateReference(const trajectory_msgs::msg::JointTrajectoryPoint &ref);
+    void updateReference(const as2_msgs::msg::Thrust &ref){};
 
-      void computeOutput(geometry_msgs::msg::PoseStamped &pose,
-                        geometry_msgs::msg::TwistStamped &twist,
-                        as2_msgs::msg::Thrust &thrust);
+    void computeOutput(geometry_msgs::msg::PoseStamped &pose,
+                       geometry_msgs::msg::TwistStamped &twist,
+                       as2_msgs::msg::Thrust &thrust);
 
-      bool setMode(const as2_msgs::msg::ControlMode &mode_in,
-                   const as2_msgs::msg::ControlMode &mode_out);
-      
-      void update_gains(const std::unordered_map<std::string, double> &params);
+    bool setMode(const as2_msgs::msg::ControlMode &mode_in,
+                 const as2_msgs::msg::ControlMode &mode_out);
 
-    private:
+    void update_gains(const std::unordered_map<std::string, double> &params);
 
-      std::unordered_map<uint8_t, bool> control_mode_in_table_;
-      std::unordered_map<uint8_t, bool> control_mode_out_table_;
+  private:
+    rclcpp::Time last_time_;
 
-      std::unordered_map<uint8_t, bool> yaw_mode_in_table_;
-      std::unordered_map<uint8_t, bool> yaw_mode_out_table_;
+    as2_msgs::msg::ControlMode control_mode_in_;
+    as2_msgs::msg::ControlMode control_mode_out_;
 
+    UAV_state state_;
+    Control_flags flags_;
 
-      std::unordered_map<uint8_t, bool> reference_frame_in_table_;
-      std::unordered_map<uint8_t, bool> reference_frame_out_table_;
+    std::unordered_map<std::string, double> parameters_;
 
-      as2_msgs::msg::ControlMode control_mode_in_;
-      as2_msgs::msg::ControlMode control_mode_out_;
+    float mass = 1.5f;
+    const float g = 9.81;
+    const Eigen::Vector3d gravitational_accel = Eigen::Vector3d(0, 0, g);
 
-      UAV_state state_;
-      Control_flags flags_;
+    Eigen::Vector3d accum_error_;
 
-      std::unordered_map<std::string, double> parameters_;
+    Eigen::Matrix3d Kp_ang_mat;
 
-      float mass = 1.5f;
-      const float g = 9.81;
-      const Eigen::Vector3d gravitational_accel = Eigen::Vector3d(0, 0, g);
+    Eigen::Matrix3d traj_Kd_lin_mat;
+    Eigen::Matrix3d traj_Kp_lin_mat;
+    Eigen::Matrix3d traj_Ki_lin_mat;
 
-      Eigen::Vector3d accum_error_;
+    Eigen::Matrix3d speed_Kd_lin_mat;
+    Eigen::Matrix3d speed_Kp_lin_mat;
+    Eigen::Matrix3d speed_Ki_lin_mat;
 
-      Eigen::Matrix3d Kp_ang_mat;
+    Eigen::Matrix3d Rot_matrix;
+    float antiwindup_cte_ = 1.0f;
 
-      Eigen::Matrix3d traj_Kd_lin_mat;
-      Eigen::Matrix3d traj_Kp_lin_mat;
-      Eigen::Matrix3d traj_Ki_lin_mat;
+    float u1 = 0.0;
+    float u2[3] = {0.0, 0.0, 0.0};
 
-      Eigen::Matrix3d speed_Kd_lin_mat;
-      Eigen::Matrix3d speed_Kp_lin_mat;
-      Eigen::Matrix3d speed_Ki_lin_mat;
+    Vector3d f_des_ = Vector3d::Zero();
+    Vector3d acro_ = Vector3d::Zero();
+    float thrust_ = 0.0;
 
-      Eigen::Matrix3d Rot_matrix;
-      float antiwindup_cte_ = 1.0f;
+    std::array<std::array<float, 3>, 4> refs_;
 
-      float u1 = 0.0;
-      float u2[3] = {0.0, 0.0, 0.0};
-
-      Vector3d f_des_ = Vector3d::Zero();
-      Vector3d acro_ = Vector3d::Zero();
-      float thrust_ = 0.0;
-
-      std::array<std::array<float, 3>, 4> refs_;
-
-      // List of string names for the parameters
-      std::vector<std::string> param_names_ = {
+    // List of string names for the parameters
+    std::vector<std::string> param_names_ = {
         "speed_following.speed_Kp.x",
         "speed_following.speed_Kp.y",
         "speed_following.speed_Kp.z",
@@ -183,37 +172,37 @@ namespace controller_plugin_differential_flatness
         "angular_speed_controller.angular_gain.x",
         "angular_speed_controller.angular_gain.y",
         "angular_speed_controller.angular_gain.z",
-      };
+    };
 
-    private:
-      void readParameters(std::vector<std::string> &params);
+  private:
+    void readParameters(std::vector<std::string> &params);
 
-      void initialize_references();
-      void reset_references();
-      void resetErrors();
-      void resetCommands();
+    void initialize_references();
+    void reset_references();
+    void resetErrors();
+    void resetCommands();
 
-      void computeActions(
+    void computeActions(
         geometry_msgs::msg::PoseStamped &pose,
         geometry_msgs::msg::TwistStamped &twist,
         as2_msgs::msg::Thrust &thrust);
 
-      void computeHOVER(
+    void computeHOVER(
         geometry_msgs::msg::PoseStamped &pose,
         geometry_msgs::msg::TwistStamped &twist,
         as2_msgs::msg::Thrust &thrust);
 
-      void computeSpeedControl(Vector3d &f_des);
-      void computeTrajectoryControl(Vector3d &f_des);
+    void computeSpeedControl(Vector3d &f_des);
+    void computeTrajectoryControl(Vector3d &f_des);
 
-      void comnputeYawAngleControl(Vector3d &f_des, Vector3d &acro, float &thrust);
+    void computeYawAngleControl(Vector3d &f_des, Vector3d &acro, float &thrust);
+    void computeYawSpeedControl(Vector3d &f_des, Vector3d &acro, float &thrust);
 
-      void getOutput(geometry_msgs::msg::PoseStamped &pose_msg,
-                     geometry_msgs::msg::TwistStamped &twist_msg,
-                     as2_msgs::msg::Thrust &thrust_msg, 
-                     Vector3d &acro, 
-                     float &thrust
-                     );
+    void getOutput(geometry_msgs::msg::PoseStamped &pose_msg,
+                   geometry_msgs::msg::TwistStamped &twist_msg,
+                   as2_msgs::msg::Thrust &thrust_msg,
+                   Vector3d &acro,
+                   float &thrust);
   };
 };
 
