@@ -27,7 +27,7 @@ set(PROJECT_DEPENDENCIES
   pluginlib
   as2_core
   as2_msgs
-  # as2_control_command_handlers
+  as2_control_command_handlers
   std_srvs
   controller_plugin_base
 )
