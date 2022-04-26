@@ -147,7 +147,7 @@ namespace controller_plugin_differential_flatness
     // TODO: Check if assignment is valid
     // control_mode_in_ = in_mode;
     // control_mode_out_ = out_mode;
-    
+
     control_mode_in_.yaw_mode = in_mode.yaw_mode;
     control_mode_in_.control_mode = in_mode.control_mode;
     control_mode_in_.reference_frame = in_mode.reference_frame;
@@ -175,7 +175,7 @@ namespace controller_plugin_differential_flatness
          node_ptr_->list_parameters({}, rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE)
              .names)
     {
-      // RCLCPP_INFO(this->get_logger(), "Parameter: %s", parameter_name.c_str());
+      // RCLCPP_INFO(node_ptr_->get_logger(), "Parameter: %s", parameter_name.c_str());
       if (!parameters_.count(parameter_name) && node_ptr_->get_parameter(parameter_name).get_type() ==
                                                     rclcpp::ParameterType::PARAMETER_DOUBLE)
       {

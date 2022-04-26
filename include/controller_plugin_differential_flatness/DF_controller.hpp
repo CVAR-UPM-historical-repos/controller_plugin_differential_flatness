@@ -144,6 +144,8 @@ namespace controller_plugin_differential_flatness
 
     // List of string names for the parameters
     std::vector<std::string> param_names_ = {
+        "uav_mass",
+        "antiwindup_cte",
         "speed_following.speed_Kp.x",
         "speed_following.speed_Kp.y",
         "speed_following.speed_Kp.z",
