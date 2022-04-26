@@ -38,15 +38,15 @@ namespace controller_plugin_differential_flatness
   {
     node_ptr_ = node_ptr;
 
-    PDController::readParameters(param_names_);
-    PDController::update_gains(parameters_);
+    readParameters(param_names_);
+    update_gains(parameters_);
 
     // Free parameters name vector
     param_names_ = std::vector<std::string>();
 
-    PDController::initialize_references();
-    PDController::resetErrors();
-    PDController::resetCommands();
+    initialize_references();
+    resetErrors();
+    resetCommands();
 
     last_time_ = node_ptr_->now();
 
@@ -132,11 +132,11 @@ namespace controller_plugin_differential_flatness
     if (!flags_.ref_generated)
     {
       RCLCPP_WARN_ONCE(node_ptr_->get_logger(), "State changed, but ref not recived yet");
-      PDController::computeHOVER(pose, twist, thrust);
+      computeHOVER(pose, twist, thrust);
     }
     else
     {
-      PDController::computeActions(pose, twist, thrust);
+      computeActions(pose, twist, thrust);
     }
 
     return;
@@ -160,8 +160,8 @@ namespace controller_plugin_differential_flatness
 
     last_time_ = node_ptr_->now();
 
-    PDController::reset_references();
-    PDController::resetErrors();
+    reset_references();
+    resetErrors();
     return true;
   };
 
@@ -285,19 +285,19 @@ namespace controller_plugin_differential_flatness
                                     geometry_msgs::msg::TwistStamped &twist,
                                     as2_msgs::msg::Thrust &thrust)
   {
-    PDController::resetCommands();
+    resetCommands();
 
     switch (control_mode_in_.control_mode)
     {
     case as2_msgs::msg::ControlMode::HOVER:
-      PDController::computeHOVER(pose, twist, thrust);
+      computeHOVER(pose, twist, thrust);
       return;
       break;
     case as2_msgs::msg::ControlMode::SPEED:
-      PDController::computeSpeedControl(f_des_);
+      computeSpeedControl(f_des_);
       break;
     case as2_msgs::msg::ControlMode::TRAJECTORY:
-      PDController::computeTrajectoryControl(f_des_);
+      computeTrajectoryControl(f_des_);
       break;
     default:
       RCLCPP_ERROR_ONCE(node_ptr_->get_logger(), "Unknown control mode");
@@ -308,10 +308,10 @@ namespace controller_plugin_differential_flatness
     switch (control_mode_in_.yaw_mode)
     {
     case as2_msgs::msg::ControlMode::YAW_ANGLE:
-      PDController::computeYawAngleControl(f_des_, acro_, thrust_);
+      computeYawAngleControl(f_des_, acro_, thrust_);
       break;
     case as2_msgs::msg::ControlMode::YAW_SPEED:
-      PDController::computeYawSpeedControl(f_des_, acro_, thrust_);
+      computeYawSpeedControl(f_des_, acro_, thrust_);
       break;
     default:
       RCLCPP_ERROR_ONCE(node_ptr_->get_logger(), "Unknown yaw mode");
@@ -322,7 +322,7 @@ namespace controller_plugin_differential_flatness
     switch (control_mode_in_.reference_frame)
     {
     case as2_msgs::msg::ControlMode::LOCAL_ENU_FRAME:
-      PDController::getOutput(pose, twist, thrust, acro_, thrust_);
+      getOutput(pose, twist, thrust, acro_, thrust_);
       break;
     
     default:
@@ -345,10 +345,10 @@ namespace controller_plugin_differential_flatness
                                   geometry_msgs::msg::TwistStamped &twist,
                                   as2_msgs::msg::Thrust &thrust)
   {
-    PDController::resetCommands();
-    PDController::computeTrajectoryControl(f_des_);
-    PDController::computeYawAngleControl(f_des_, acro_, thrust_);
-    PDController::getOutput(pose, twist, thrust, acro_, thrust_);
+    resetCommands();
+    computeTrajectoryControl(f_des_);
+    computeYawAngleControl(f_des_, acro_, thrust_);
+    getOutput(pose, twist, thrust, acro_, thrust_);
     return;
   }
 
