@@ -88,25 +88,18 @@ namespace controller_plugin_differential_flatness
     PDController(){};
     ~PDController(){};
 
-  private:
-    as2::Node *node_ptr_;
-
   public:
-    void initialize(as2::Node *node_ptr);
-
-    void updateState(const nav_msgs::msg::Odometry &odom);
-
-    void updateReference(const geometry_msgs::msg::PoseStamped &ref){};
-    void updateReference(const geometry_msgs::msg::TwistStamped &ref);
-    void updateReference(const trajectory_msgs::msg::JointTrajectoryPoint &ref);
-    void updateReference(const as2_msgs::msg::Thrust &ref){};
+    void ownInitialize() override;
+    void updateState(const nav_msgs::msg::Odometry &odom) override;
+    void updateReference(const geometry_msgs::msg::TwistStamped &ref) override;
+    void updateReference(const trajectory_msgs::msg::JointTrajectoryPoint &ref) override;
 
     void computeOutput(geometry_msgs::msg::PoseStamped &pose,
                        geometry_msgs::msg::TwistStamped &twist,
-                       as2_msgs::msg::Thrust &thrust);
+                       as2_msgs::msg::Thrust &thrust) override;
 
     bool setMode(const as2_msgs::msg::ControlMode &mode_in,
-                 const as2_msgs::msg::ControlMode &mode_out);
+                 const as2_msgs::msg::ControlMode &mode_out) override;
 
     void update_gains(const std::unordered_map<std::string, double> &params);
 

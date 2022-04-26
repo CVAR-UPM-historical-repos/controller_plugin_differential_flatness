@@ -34,10 +34,8 @@
 namespace controller_plugin_differential_flatness
 {
 
-  void PDController::initialize(as2::Node *node_ptr)
+  void PDController::ownInitialize()
   {
-    node_ptr_ = node_ptr;
-
     readParameters(param_names_);
     update_gains(parameters_);
 
