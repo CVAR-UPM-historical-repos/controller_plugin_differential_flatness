@@ -36,12 +36,15 @@ namespace controller_plugin_differential_flatness
 
   void PDController::ownInitialize()
   {
-    readParameters(param_names_);
-    update_gains(parameters_);
+    // TODO: Read params
+    get_default_parameters();
+    // readParameters(param_names_);
+    // update_gains(parameters_);
 
     // Free parameters name vector
     param_names_ = std::vector<std::string>();
 
+    resetState();
     initialize_references();
     resetErrors();
     resetCommands();
@@ -53,6 +56,7 @@ namespace controller_plugin_differential_flatness
 
   void PDController::updateState(const nav_msgs::msg::Odometry &odom)
   {
+    // RCLCPP_WARN(node_ptr_->get_logger(), "Updating state");
     state_.pos[0] = odom.pose.pose.position.x;
     state_.pos[1] = odom.pose.pose.position.y;
     state_.pos[2] = odom.pose.pose.position.z;
@@ -66,6 +70,17 @@ namespace controller_plugin_differential_flatness
 
     Rot_matrix = q.toRotationMatrix();
     state_.rot = Rot_matrix.eulerAngles(0, 1, 2);
+
+    // RCLCPP_WARN(node_ptr_->get_logger(), "Rot_matrix (0,:): %f %f %f", Rot_matrix(0, 0), Rot_matrix(0, 1),
+    //             Rot_matrix(0, 2));
+
+    // RCLCPP_WARN(node_ptr_->get_logger(), "Rot_matrix (1,:): %f %f %f", Rot_matrix(1, 0), Rot_matrix(1, 1),
+    //             Rot_matrix(1, 2));
+    
+    // RCLCPP_WARN(node_ptr_->get_logger(), "Rot_matrix (2,:): %f %f %f", Rot_matrix(2, 0), Rot_matrix(2, 1),
+    //             Rot_matrix(2, 2));
+
+    // RCLCPP_WARN(node_ptr_->get_logger(), "State updated");
 
     flags_.state_received = true;
 
@@ -143,7 +158,7 @@ namespace controller_plugin_differential_flatness
   bool PDController::setMode(const as2_msgs::msg::ControlMode &in_mode,
                              const as2_msgs::msg::ControlMode &out_mode)
   {
-    
+
     // TODO: Check if assignment is valid
     // control_mode_in_ = in_mode;
     // control_mode_out_ = out_mode;
@@ -167,22 +182,90 @@ namespace controller_plugin_differential_flatness
   {
     for (auto it = std::begin(params); it != std::end(params); ++it)
     {
+      RCLCPP_INFO(node_ptr_->get_logger(), "Declaring parameter: %s", it->c_str());
       node_ptr_->declare_parameter(*it);
       parameters_.emplace(*it, 0.0);
+      // RCLCPP_INFO(node_ptr_->get_logger(), "Parameter %s added to parameters_", it->c_str());
     }
 
     for (auto &parameter_name :
          node_ptr_->list_parameters({}, rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE)
              .names)
     {
-      // RCLCPP_INFO(node_ptr_->get_logger(), "Parameter: %s", parameter_name.c_str());
-      if (!parameters_.count(parameter_name) && node_ptr_->get_parameter(parameter_name).get_type() ==
-                                                    rclcpp::ParameterType::PARAMETER_DOUBLE)
+      RCLCPP_INFO(node_ptr_->get_logger(), "Parameter: %s", parameter_name.c_str());
+
+      // if (parameters_.count(parameter_name))
+      // {
+      //   RCLCPP_INFO(node_ptr_->get_logger(), "Parameter: %s in parameters_", parameter_name.c_str());
+
+      //   if (node_ptr_->get_parameter(parameter_name).get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE)
+      //   {
+      //     RCLCPP_INFO(node_ptr_->get_logger(), "Parameter: %s is double", parameter_name.c_str());
+      //   }
+      //   else
+      //   {
+      //     RCLCPP_INFO(node_ptr_->get_logger(), "Parameter: %s is not double", parameter_name.c_str());
+      //   }
+      // }
+      // else
+      // {
+      //   RCLCPP_INFO(node_ptr_->get_logger(), "Parameter: %s not in parameters_", parameter_name.c_str());
+      // }
+
+      if (parameters_.count(parameter_name) && node_ptr_->get_parameter(parameter_name).get_type() ==
+                                                   rclcpp::ParameterType::PARAMETER_DOUBLE)
       {
+        RCLCPP_INFO(node_ptr_->get_logger(), "Parameter %s modify to parameters_", parameter_name.c_str());
         parameters_[parameter_name] = node_ptr_->get_parameter(parameter_name).as_double();
         // parameters_.emplace(parameter_name, node_ptr_->get_parameter(parameter_name).as_double());
       }
+      else
+      {
+        RCLCPP_INFO(node_ptr_->get_logger(), "Parameter %s not modify to parameters_", parameter_name.c_str());
+      }
     }
+
+    return;
+  }
+
+  void PDController::get_default_parameters()
+  {
+    mass = 1.5;
+    antiwindup_cte_ = 1.0;
+
+    Eigen::Vector3d speed_Kp_lin(3.0,
+                                 3.0,
+                                 4.0);
+    Eigen::Vector3d speed_Kd_lin(0.0,
+                                 0.0,
+                                 0.0);
+    Eigen::Vector3d speed_Ki_lin(0.0,
+                                 0.0,
+                                 0.1);
+
+    Eigen::Vector3d traj_Kp_lin(6.0,
+                                6.0,
+                                6.0);
+    Eigen::Vector3d traj_Kd_lin(0.01,
+                                0.01,
+                                0.01);
+    Eigen::Vector3d traj_Ki_lin(3.0,
+                                3.0,
+                                3.0);
+
+    Eigen::Vector3d Kp_ang(5.5,
+                           5.5,
+                           5.0);
+
+    traj_Kp_lin_mat = traj_Kp_lin.asDiagonal();
+    traj_Kd_lin_mat = traj_Kd_lin.asDiagonal();
+    traj_Ki_lin_mat = traj_Ki_lin.asDiagonal();
+
+    speed_Kp_lin_mat = speed_Kp_lin.asDiagonal();
+    speed_Kd_lin_mat = speed_Kd_lin.asDiagonal();
+    speed_Ki_lin_mat = speed_Ki_lin.asDiagonal();
+
+    Kp_ang_mat = Kp_ang.asDiagonal();
 
     return;
   }
@@ -192,6 +275,9 @@ namespace controller_plugin_differential_flatness
     // for (auto it = params.begin(); it != params.end(); it++) {
     //   RCLCPP_INFO(this->get_logger(), "Updating gains: %s = %f", it->first.c_str(), it->second);
     // }
+
+    mass = params.at("uav_mass");
+    antiwindup_cte_ = params.at("antiwindup_cte");
 
     Eigen::Vector3d speed_Kp_lin(params.at("speed_following.speed_Kp.x"),
                                  params.at("speed_following.speed_Kp.y"),
@@ -227,11 +313,21 @@ namespace controller_plugin_differential_flatness
 
     Kp_ang_mat = Kp_ang.asDiagonal();
 
-    mass = params.at("uav_mass");
-    antiwindup_cte_ = params.at("antiwindup_cte");
-
     return;
   };
+
+  void PDController::resetState()
+  {
+    state_.pos[0] = 0.0;
+    state_.pos[1] = 0.0;
+    state_.pos[2] = 0.0;
+    state_.vel[0] = 0.0;
+    state_.vel[1] = 0.0;
+    state_.vel[2] = 0.0;
+    state_.rot[0] = 0.0;
+    state_.rot[1] = 0.0;
+    state_.rot[2] = 0.0;
+  }
 
   void PDController::initialize_references()
   {
@@ -256,12 +352,11 @@ namespace controller_plugin_differential_flatness
     refs_[0][0] = state_.pos[0];
     refs_[1][0] = state_.pos[1];
     refs_[2][0] = state_.pos[2];
-
     refs_[3][0] = state_.rot[2];
 
     refs_[0][1] = 0.0f;
     refs_[1][1] = 0.0f;
-    refs_[2][1] = 0.0f;
+    refs_[2][1] = 1.0f;
     refs_[3][1] = 0.0f;
 
     refs_[0][2] = 0.0f;
@@ -285,6 +380,36 @@ namespace controller_plugin_differential_flatness
   {
     resetCommands();
 
+    // RCLCPP_INFO(node_ptr_->get_logger(), "Computing PD controller actions");
+
+    // // state_
+    // RCLCPP_INFO(node_ptr_->get_logger(), "State: %f, %f, %f, %f, %f, %f, %f, %f, %f",
+    //             state_.pos[0],
+    //             state_.pos[1],
+    //             state_.pos[2],
+    //             state_.vel[0],
+    //             state_.vel[1],
+    //             state_.vel[2],
+    //             state_.rot[0],
+    //             state_.rot[1],
+    //             state_.rot[2]);
+
+    // // ref_
+    // RCLCPP_INFO(node_ptr_->get_logger(), "refs_[0][0] = %f", refs_[0][0]);
+    // RCLCPP_INFO(node_ptr_->get_logger(), "refs_[1][0] = %f", refs_[1][0]);
+    // RCLCPP_INFO(node_ptr_->get_logger(), "refs_[2][0] = %f", refs_[2][0]);
+    // RCLCPP_INFO(node_ptr_->get_logger(), "refs_[3][0] = %f", refs_[3][0]);
+
+    // RCLCPP_INFO(node_ptr_->get_logger(), "refs_[0][1] = %f", refs_[0][1]);
+    // RCLCPP_INFO(node_ptr_->get_logger(), "refs_[1][1] = %f", refs_[1][1]);
+    // RCLCPP_INFO(node_ptr_->get_logger(), "refs_[2][1] = %f", refs_[2][1]);
+    // RCLCPP_INFO(node_ptr_->get_logger(), "refs_[3][1] = %f", refs_[3][1]);
+
+    // RCLCPP_INFO(node_ptr_->get_logger(), "refs_[0][2] = %f", refs_[0][2]);
+    // RCLCPP_INFO(node_ptr_->get_logger(), "refs_[1][2] = %f", refs_[1][2]);
+    // RCLCPP_INFO(node_ptr_->get_logger(), "refs_[2][2] = %f", refs_[2][2]);
+    // RCLCPP_INFO(node_ptr_->get_logger(), "refs_[3][2] = %f", refs_[3][2]);
+
     switch (control_mode_in_.control_mode)
     {
     case as2_msgs::msg::ControlMode::HOVER:
@@ -292,10 +417,10 @@ namespace controller_plugin_differential_flatness
       return;
       break;
     case as2_msgs::msg::ControlMode::SPEED:
-      computeSpeedControl(f_des_);
+      f_des_ = computeSpeedControl();
       break;
     case as2_msgs::msg::ControlMode::TRAJECTORY:
-      computeTrajectoryControl(f_des_);
+      f_des_ = computeTrajectoryControl();
       break;
     default:
       RCLCPP_ERROR_ONCE(node_ptr_->get_logger(), "Unknown control mode");
@@ -303,13 +428,15 @@ namespace controller_plugin_differential_flatness
       break;
     }
 
+    // RCLCPP_INFO(node_ptr_->get_logger(), "f_des_ = %f, %f, %f", f_des_(0), f_des_(1), f_des_(2));
+
     switch (control_mode_in_.yaw_mode)
     {
     case as2_msgs::msg::ControlMode::YAW_ANGLE:
-      computeYawAngleControl(f_des_, acro_, thrust_);
+      computeYawAngleControl(acro_, thrust_);
       break;
     case as2_msgs::msg::ControlMode::YAW_SPEED:
-      computeYawSpeedControl(f_des_, acro_, thrust_);
+      computeYawSpeedControl(acro_, thrust_);
       break;
     default:
       RCLCPP_ERROR_ONCE(node_ptr_->get_logger(), "Unknown yaw mode");
@@ -317,18 +444,21 @@ namespace controller_plugin_differential_flatness
       break;
     }
 
+    // RCLCPP_INFO(node_ptr_->get_logger(), "thrust_ = %f", thrust_);
+    // RCLCPP_INFO(node_ptr_->get_logger(), "acro_ = %f, %f, %f", acro_(0), acro_(1), acro_(2));
+
     switch (control_mode_in_.reference_frame)
     {
     case as2_msgs::msg::ControlMode::LOCAL_ENU_FRAME:
-      getOutput(pose, twist, thrust, acro_, thrust_);
+      getOutput(pose, twist, thrust);
       break;
-    
+
     default:
       RCLCPP_ERROR_ONCE(node_ptr_->get_logger(), "Unknown reference frame");
       return;
       break;
     }
-    
+
     return;
   };
 
@@ -344,14 +474,22 @@ namespace controller_plugin_differential_flatness
                                   as2_msgs::msg::Thrust &thrust)
   {
     resetCommands();
-    computeTrajectoryControl(f_des_);
-    computeYawAngleControl(f_des_, acro_, thrust_);
-    getOutput(pose, twist, thrust, acro_, thrust_);
+    f_des_ = computeTrajectoryControl();
+    computeYawAngleControl(acro_, thrust_);
+    getOutput(pose, twist, thrust);
     return;
   }
 
-  void PDController::computeSpeedControl(Vector3d &f_des)
+  Vector3d PDController::computeSpeedControl()
   {
+    // RCLCPP_INFO(node_ptr_->get_logger(), "Computing speed control");
+    // RCLCPP_INFO(node_ptr_->get_logger(), "speed_Kp_lin_mat: %f %f %f",
+    //             speed_Kp_lin_mat(0, 0),
+    //             speed_Kp_lin_mat(1, 1),
+    //             speed_Kp_lin_mat(2, 2));
+
+    Vector3d f_des = Vector3d::Zero();
+
     Vector3d rdot(state_.vel[0], state_.vel[1], state_.vel[2]);
     Vector3d rdot_t(refs_[0][1], refs_[1][1], refs_[2][1]);
 
@@ -400,11 +538,13 @@ namespace controller_plugin_differential_flatness
     // compute F_des
     f_des = mass * a_des + mass * gravitational_accel;
 
-    return;
+    return f_des;
   };
 
-  void PDController::computeTrajectoryControl(Vector3d &f_des)
+  Vector3d PDController::computeTrajectoryControl()
   {
+    Vector3d f_des = Vector3d::Zero();
+
     Vector3d r(state_.pos[0], state_.pos[1], state_.pos[2]);
     Vector3d rdot(state_.vel[0], state_.vel[1], state_.vel[2]);
     Vector3d r_t(refs_[0][0], refs_[1][0], refs_[2][0]);
@@ -426,12 +566,14 @@ namespace controller_plugin_differential_flatness
     f_des = -traj_Kp_lin_mat * e_p - traj_Ki_lin_mat * accum_error_ - traj_Kd_lin_mat * e_v +
             mass * gravitational_accel + mass * rddot_t;
 
-    return;
+    return f_des;
   };
 
-  void PDController::computeYawAngleControl(Vector3d &f_des, Vector3d &acro, float &thrust)
+  void PDController::computeYawAngleControl(Vector3d &acro, float &thrust)
   {
-    Vector3d zb_des = f_des.normalized();
+    // RCLCPP_INFO(node_ptr_->get_logger(), "computeYawAngleControl");
+
+    Vector3d zb_des = f_des_.normalized();
 
     Vector3d xc_des(cos(refs_[3][0]), sin(refs_[3][0]), 0);
 
@@ -449,7 +591,7 @@ namespace controller_plugin_differential_flatness
     Vector3d V_e_rot(Mat_e_rot(2, 1), Mat_e_rot(0, 2), Mat_e_rot(1, 0));
     Vector3d E_rot = (1.0f / 2.0f) * V_e_rot;
 
-    thrust = (float)f_des.dot(Rot_matrix.col(2).normalized());
+    thrust = (float)f_des_.dot(Rot_matrix.col(2).normalized());
 
     Vector3d outputs = -Kp_ang_mat * E_rot;
 
@@ -460,9 +602,11 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  void PDController::computeYawSpeedControl(Vector3d &f_des, Vector3d &acro, float &thrust)
+  void PDController::computeYawSpeedControl(Vector3d &acro, float &thrust)
   {
-    Vector3d zb_des = f_des.normalized();
+    // RCLCPP_INFO(node_ptr_->get_logger(), "Yaw Speed Control");
+
+    Vector3d zb_des = f_des_.normalized();
 
     float yaw_state = state_.rot[2];
     float yawdot_ref = refs_[3][1];
@@ -489,7 +633,22 @@ namespace controller_plugin_differential_flatness
     Vector3d V_e_rot(Mat_e_rot(2, 1), Mat_e_rot(0, 2), Mat_e_rot(1, 0));
     Vector3d E_rot = (1.0f / 2.0f) * V_e_rot;
 
-    thrust = (float)f_des.dot(Rot_matrix.col(2).normalized());
+    // RCLCPP_INFO(node_ptr_->get_logger(), "Rot_matrix (0,:): %f %f %f", Rot_matrix(0, 0), Rot_matrix(0, 1),
+    //             Rot_matrix(0, 2));
+
+    // RCLCPP_INFO(node_ptr_->get_logger(), "Rot_matrix (1,:): %f %f %f", Rot_matrix(1, 0), Rot_matrix(1, 1),
+    //             Rot_matrix(1, 2));
+    
+    // RCLCPP_INFO(node_ptr_->get_logger(), "Rot_matrix (2,:): %f %f %f", Rot_matrix(2, 0), Rot_matrix(2, 1),
+    //             Rot_matrix(2, 2));
+
+    // RCLCPP_INFO(node_ptr_->get_logger(), "Rot_matrix.col(2).normalized(): %f %f %f",
+    //             Rot_matrix.col(2).normalized()(0), Rot_matrix.col(2).normalized()(1),
+    //             Rot_matrix.col(2).normalized()(2));
+
+    // RCLCPP_INFO(node_ptr_->get_logger(), "f_des_: %f", f_des_.norm());
+
+    thrust = (float)f_des_.dot(Rot_matrix.col(2).normalized());
 
     Vector3d outputs = -Kp_ang_mat * E_rot;
 
@@ -502,17 +661,17 @@ namespace controller_plugin_differential_flatness
 
   void PDController::getOutput(geometry_msgs::msg::PoseStamped &pose_msg,
                                geometry_msgs::msg::TwistStamped &twist_msg,
-                               as2_msgs::msg::Thrust &thrust_msg, Vector3d &acro, float &thrust)
+                               as2_msgs::msg::Thrust &thrust_msg)
   {
     twist_msg.header.stamp = node_ptr_->now();
 
-    twist_msg.twist.angular.x = acro(0);
-    twist_msg.twist.angular.y = acro(1);
-    twist_msg.twist.angular.z = acro(2);
+    twist_msg.twist.angular.x = acro_(0);
+    twist_msg.twist.angular.y = acro_(1);
+    twist_msg.twist.angular.z = acro_(2);
 
     thrust_msg.header.stamp = node_ptr_->now();
 
-    thrust_msg.thrust = thrust;
+    thrust_msg.thrust = thrust_;
 
     return;
   }

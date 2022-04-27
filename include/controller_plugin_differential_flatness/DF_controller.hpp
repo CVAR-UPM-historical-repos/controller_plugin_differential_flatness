@@ -101,6 +101,7 @@ namespace controller_plugin_differential_flatness
     bool setMode(const as2_msgs::msg::ControlMode &mode_in,
                  const as2_msgs::msg::ControlMode &mode_out) override;
 
+    void get_default_parameters();
     void update_gains(const std::unordered_map<std::string, double> &params);
 
   private:
@@ -132,9 +133,6 @@ namespace controller_plugin_differential_flatness
 
     Eigen::Matrix3d Rot_matrix;
     float antiwindup_cte_ = 1.0f;
-
-    float u1 = 0.0;
-    float u2[3] = {0.0, 0.0, 0.0};
 
     Vector3d f_des_ = Vector3d::Zero();
     Vector3d acro_ = Vector3d::Zero();
@@ -172,6 +170,7 @@ namespace controller_plugin_differential_flatness
   private:
     void readParameters(std::vector<std::string> &params);
 
+    void resetState();
     void initialize_references();
     void reset_references();
     void resetErrors();
@@ -187,17 +186,15 @@ namespace controller_plugin_differential_flatness
         geometry_msgs::msg::TwistStamped &twist,
         as2_msgs::msg::Thrust &thrust);
 
-    void computeSpeedControl(Vector3d &f_des);
-    void computeTrajectoryControl(Vector3d &f_des);
+    Vector3d computeSpeedControl();
+    Vector3d computeTrajectoryControl();
 
-    void computeYawAngleControl(Vector3d &f_des, Vector3d &acro, float &thrust);
-    void computeYawSpeedControl(Vector3d &f_des, Vector3d &acro, float &thrust);
+    void computeYawAngleControl(Vector3d &acro, float &thrust);
+    void computeYawSpeedControl(Vector3d &acro, float &thrust);
 
     void getOutput(geometry_msgs::msg::PoseStamped &pose_msg,
                    geometry_msgs::msg::TwistStamped &twist_msg,
-                   as2_msgs::msg::Thrust &thrust_msg,
-                   Vector3d &acro,
-                   float &thrust);
+                   as2_msgs::msg::Thrust &thrust_msg);
   };
 };
 
