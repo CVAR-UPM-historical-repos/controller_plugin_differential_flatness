@@ -1,40 +1,9 @@
-/*!********************************************************************************
- * \brief     Differential Flatness controller Implementation
- * \authors   Miguel Fernandez-Cortizas
- :on
- * \copyright Copyright (c) 2020 Universidad Politecnica de Madrid
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- * 3. Neither the name of the copyright holder nor the names of its contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
- * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
- * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
- * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *******************************************************************************/
-
-#include "DF_controller.hpp"
+#include "DF_plugin.hpp"
 
 namespace controller_plugin_differential_flatness
 {
 
-  void PDController::ownInitialize()
+  void DFPlugin::ownInitialize()
   {
     flags_.parameters_read = false;
 
@@ -42,7 +11,7 @@ namespace controller_plugin_differential_flatness
     update_gains(parameters_);
 
     static auto parameters_callback_handle_ = node_ptr_->add_on_set_parameters_callback(
-      std::bind(&PDController::parametersCallback, this, std::placeholders::_1));
+      std::bind(&DFPlugin::parametersCallback, this, std::placeholders::_1));
 
     declareParameters(parameters_);
     resetState();
@@ -50,12 +19,15 @@ namespace controller_plugin_differential_flatness
     resetErrors();
     resetCommands();
 
+    // Create a DFController
+    auto controller_ptr = std::make_shared<differential_flatness_controller::DFController>();
+
     last_time_ = node_ptr_->now();
 
     return;
   };
 
-  void PDController::updateState(const nav_msgs::msg::Odometry &odom)
+  void DFPlugin::updateState(const nav_msgs::msg::Odometry &odom)
   {
     // RCLCPP_WARN(node_ptr_->get_logger(), "Updating state");
     state_.pos[0] = odom.pose.pose.position.x;
@@ -88,7 +60,7 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  void PDController::updateReference(const geometry_msgs::msg::TwistStamped &twist_msg)
+  void DFPlugin::updateReference(const geometry_msgs::msg::TwistStamped &twist_msg)
   {
     if (control_mode_in_.control_mode != as2_msgs::msg::ControlMode::SPEED)
     {
@@ -108,7 +80,7 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  void PDController::updateReference(const trajectory_msgs::msg::JointTrajectoryPoint &traj_msg)
+  void DFPlugin::updateReference(const trajectory_msgs::msg::JointTrajectoryPoint &traj_msg)
   {
     if (control_mode_in_.control_mode != as2_msgs::msg::ControlMode::TRAJECTORY)
     {
@@ -133,7 +105,7 @@ namespace controller_plugin_differential_flatness
     //   | x_ref_yaw | v_ref_yaw | a_ref_yaw |
   };
 
-  void PDController::computeOutput(geometry_msgs::msg::PoseStamped &pose,
+  void DFPlugin::computeOutput(geometry_msgs::msg::PoseStamped &pose,
                                    geometry_msgs::msg::TwistStamped &twist,
                                    as2_msgs::msg::Thrust &thrust)
   {
@@ -156,7 +128,7 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  bool PDController::setMode(const as2_msgs::msg::ControlMode &in_mode,
+  bool DFPlugin::setMode(const as2_msgs::msg::ControlMode &in_mode,
                              const as2_msgs::msg::ControlMode &out_mode)
   {
 
@@ -186,7 +158,7 @@ namespace controller_plugin_differential_flatness
   };
 
 
-  rcl_interfaces::msg::SetParametersResult PDController::parametersCallback(const std::vector<rclcpp::Parameter> &parameters)
+  rcl_interfaces::msg::SetParametersResult DFPlugin::parametersCallback(const std::vector<rclcpp::Parameter> &parameters)
   {
     rcl_interfaces::msg::SetParametersResult result;
     result.successful = true;
@@ -220,7 +192,7 @@ namespace controller_plugin_differential_flatness
     return result;
   };
 
-  void PDController::declareParameters(std::unordered_map<std::string, double> &params)
+  void DFPlugin::declareParameters(std::unordered_map<std::string, double> &params)
   {
     for (std::pair<std::string, double> element : parameters_)
     {
@@ -229,7 +201,7 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  void PDController::get_default_parameters()
+  void DFPlugin::get_default_parameters()
   {
     mass = 1.5;
     antiwindup_cte_ = 1.0;
@@ -271,7 +243,7 @@ namespace controller_plugin_differential_flatness
     return;
   }
 
-  void PDController::update_gains(const std::unordered_map<std::string, double> &params)
+  void DFPlugin::update_gains(const std::unordered_map<std::string, double> &params)
   {
     // for (auto it = params.begin(); it != params.end(); it++) {
     //   RCLCPP_INFO(this->get_logger(), "Updating gains: %s = %f", it->first.c_str(), it->second);
@@ -317,7 +289,7 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  void PDController::resetState()
+  void DFPlugin::resetState()
   {
     state_.pos[0] = 0.0;
     state_.pos[1] = 0.0;
@@ -330,7 +302,7 @@ namespace controller_plugin_differential_flatness
     state_.rot[2] = 0.0;
   }
 
-  void PDController::initialize_references()
+  void DFPlugin::initialize_references()
   {
     // set all refs to zefs
     for (auto dof : refs_)
@@ -342,7 +314,7 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  void PDController::reset_references()
+  void DFPlugin::reset_references()
   {
     RCLCPP_INFO(node_ptr_->get_logger(), "Resetting references");
 
@@ -368,14 +340,14 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  void PDController::resetErrors()
+  void DFPlugin::resetErrors()
   {
     // Set errors to zero
     accum_error_.setZero();
     return;
   };
 
-  void PDController::computeActions(geometry_msgs::msg::PoseStamped &pose,
+  void DFPlugin::computeActions(geometry_msgs::msg::PoseStamped &pose,
                                     geometry_msgs::msg::TwistStamped &twist,
                                     as2_msgs::msg::Thrust &thrust)
   {
@@ -463,14 +435,14 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  void PDController::resetCommands()
+  void DFPlugin::resetCommands()
   {
     f_des_.setZero();
     acro_.setZero();
     thrust_ = 0.0f;
   }
 
-  void PDController::computeHOVER(geometry_msgs::msg::PoseStamped &pose,
+  void DFPlugin::computeHOVER(geometry_msgs::msg::PoseStamped &pose,
                                   geometry_msgs::msg::TwistStamped &twist,
                                   as2_msgs::msg::Thrust &thrust)
   {
@@ -481,7 +453,7 @@ namespace controller_plugin_differential_flatness
     return;
   }
 
-  Vector3d PDController::computeSpeedControl()
+  Vector3d DFPlugin::computeSpeedControl()
   {
     // RCLCPP_INFO(node_ptr_->get_logger(), "Computing speed control");
     // RCLCPP_INFO(node_ptr_->get_logger(), "speed_Kp_lin_mat: %f %f %f",
@@ -542,7 +514,7 @@ namespace controller_plugin_differential_flatness
     return f_des;
   };
 
-  Vector3d PDController::computeTrajectoryControl()
+  Vector3d DFPlugin::computeTrajectoryControl()
   {
     Vector3d f_des = Vector3d::Zero();
 
@@ -570,7 +542,7 @@ namespace controller_plugin_differential_flatness
     return f_des;
   };
 
-  void PDController::computeYawAngleControl(Vector3d &acro, float &thrust)
+  void DFPlugin::computeYawAngleControl(Vector3d &acro, float &thrust)
   {
     // RCLCPP_INFO(node_ptr_->get_logger(), "computeYawAngleControl");
 
@@ -603,7 +575,7 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  void PDController::computeYawSpeedControl(Vector3d &acro, float &thrust)
+  void DFPlugin::computeYawSpeedControl(Vector3d &acro, float &thrust)
   {
     // RCLCPP_INFO(node_ptr_->get_logger(), "Yaw Speed Control");
 
@@ -660,7 +632,7 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  void PDController::getOutput(geometry_msgs::msg::PoseStamped &pose_msg,
+  void DFPlugin::getOutput(geometry_msgs::msg::PoseStamped &pose_msg,
                                geometry_msgs::msg::TwistStamped &twist_msg,
                                as2_msgs::msg::Thrust &thrust_msg)
   {
@@ -679,5 +651,5 @@ namespace controller_plugin_differential_flatness
 } // namespace controller_plugin_differential_flatness
 
 #include <pluginlib/class_list_macros.hpp>
-PLUGINLIB_EXPORT_CLASS(controller_plugin_differential_flatness::PDController,
+PLUGINLIB_EXPORT_CLASS(controller_plugin_differential_flatness::DFPlugin,
                        controller_plugin_base::ControllerBase)

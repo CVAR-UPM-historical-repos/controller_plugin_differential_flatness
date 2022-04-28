@@ -36,13 +36,24 @@ foreach(DEPENDENCY ${PROJECT_DEPENDENCIES})
   find_package(${DEPENDENCY} REQUIRED)
 endforeach()
 
+# set(HEADER_HPP_FILES
+#   include/${PROJECT_NAME}/DF_controller.hpp
+#   include/${PROJECT_NAME}/DF_plugin.hpp
+# )
+
+# set(SOURCE_CPP_FILES 
+#   lib/DF_controller.cpp
+#   lib/DF_plugin.cpp
+# )
+
 include_directories(
   include
   include/${PROJECT_NAME}
   ${EIGEN3_INCLUDE_DIRS}
 )
 
-add_library(${PROJECT_NAME} SHARED src/DF_controller.cpp )
+add_library(${PROJECT_NAME} SHARED lib/DF_plugin.cpp )
+
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
