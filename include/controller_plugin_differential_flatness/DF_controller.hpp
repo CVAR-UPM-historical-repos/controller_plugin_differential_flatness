@@ -72,6 +72,7 @@ namespace controller_plugin_differential_flatness
     bool ref_generated;
     bool hover_position;
     bool state_received;
+    bool parameters_read;
   };
 
   struct UAV_state
@@ -104,6 +105,8 @@ namespace controller_plugin_differential_flatness
     void get_default_parameters();
     void update_gains(const std::unordered_map<std::string, double> &params);
 
+    rcl_interfaces::msg::SetParametersResult parametersCallback(const std::vector<rclcpp::Parameter> &parameters);
+
   private:
     rclcpp::Time last_time_;
 
@@ -112,8 +115,6 @@ namespace controller_plugin_differential_flatness
 
     UAV_state state_;
     Control_flags flags_;
-
-    std::unordered_map<std::string, double> parameters_;
 
     float mass = 1.5f;
     const float g = 9.81;
@@ -141,34 +142,35 @@ namespace controller_plugin_differential_flatness
     std::array<std::array<float, 3>, 4> refs_;
 
     // List of string names for the parameters
-    std::vector<std::string> param_names_ = {
-        "uav_mass",
-        "antiwindup_cte",
-        "speed_following.speed_Kp.x",
-        "speed_following.speed_Kp.y",
-        "speed_following.speed_Kp.z",
-        "speed_following.speed_Kd.x",
-        "speed_following.speed_Kd.y",
-        "speed_following.speed_Kd.z",
-        "speed_following.speed_Ki.x",
-        "speed_following.speed_Ki.y",
-        "speed_following.speed_Ki.z",
-        "trajectory_following.position_Kp.x",
-        "trajectory_following.position_Kp.y",
-        "trajectory_following.position_Kp.z",
-        "trajectory_following.position_Kd.x",
-        "trajectory_following.position_Kd.y",
-        "trajectory_following.position_Kd.z",
-        "trajectory_following.position_Ki.x",
-        "trajectory_following.position_Ki.y",
-        "trajectory_following.position_Ki.z",
-        "angular_speed_controller.angular_gain.x",
-        "angular_speed_controller.angular_gain.y",
-        "angular_speed_controller.angular_gain.z",
+
+    std::unordered_map<std::string, double> parameters_ = {
+        {"uav_mass", 1.5},
+        {"antiwindup_cte", 1.0},
+        {"speed_following.speed_Kp.x", 3.0},
+        {"speed_following.speed_Kp.y", 3.0},
+        {"speed_following.speed_Kp.z", 4.0},
+        {"speed_following.speed_Kd.x", 0.0},
+        {"speed_following.speed_Kd.y", 0.0},
+        {"speed_following.speed_Kd.z", 0.0},
+        {"speed_following.speed_Ki.x", 0.0},
+        {"speed_following.speed_Ki.y", 0.0},
+        {"speed_following.speed_Ki.z", 0.01},
+        {"trajectory_following.position_Kp.x", 6.0},
+        {"trajectory_following.position_Kp.y", 6.0},
+        {"trajectory_following.position_Kp.z", 6.0},
+        {"trajectory_following.position_Kd.x", 0.01},
+        {"trajectory_following.position_Kd.y", 0.01},
+        {"trajectory_following.position_Kd.z", 0.01},
+        {"trajectory_following.position_Ki.x", 3.0},
+        {"trajectory_following.position_Ki.y", 3.0},
+        {"trajectory_following.position_Ki.z", 3.0},
+        {"angular_speed_controller.angular_gain.x", 5.5},
+        {"angular_speed_controller.angular_gain.y", 5.5},
+        {"angular_speed_controller.angular_gain.z", 5.0},
     };
 
   private:
-    void readParameters(std::vector<std::string> &params);
+    void declareParameters(std::unordered_map<std::string, double> &params);
 
     void resetState();
     void initialize_references();

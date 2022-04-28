@@ -36,14 +36,15 @@ namespace controller_plugin_differential_flatness
 
   void PDController::ownInitialize()
   {
-    // TODO: Read params
-    get_default_parameters();
-    // readParameters(param_names_);
-    // update_gains(parameters_);
+    flags_.parameters_read = false;
 
-    // Free parameters name vector
-    param_names_ = std::vector<std::string>();
+    // Set default gains values
+    update_gains(parameters_);
 
+    static auto parameters_callback_handle_ = node_ptr_->add_on_set_parameters_callback(
+      std::bind(&PDController::parametersCallback, this, std::placeholders::_1));
+
+    declareParameters(parameters_);
     resetState();
     initialize_references();
     resetErrors();
@@ -76,7 +77,7 @@ namespace controller_plugin_differential_flatness
 
     // RCLCPP_WARN(node_ptr_->get_logger(), "Rot_matrix (1,:): %f %f %f", Rot_matrix(1, 0), Rot_matrix(1, 1),
     //             Rot_matrix(1, 2));
-    
+
     // RCLCPP_WARN(node_ptr_->get_logger(), "Rot_matrix (2,:): %f %f %f", Rot_matrix(2, 0), Rot_matrix(2, 1),
     //             Rot_matrix(2, 2));
 
@@ -144,7 +145,7 @@ namespace controller_plugin_differential_flatness
 
     if (!flags_.ref_generated)
     {
-      RCLCPP_WARN(node_ptr_->get_logger(), "State changed, but ref not recived yet");
+      RCLCPP_WARN_ONCE(node_ptr_->get_logger(), "State changed, but ref not recived yet");
       computeHOVER(pose, twist, thrust);
     }
     else
@@ -163,6 +164,12 @@ namespace controller_plugin_differential_flatness
     // control_mode_in_ = in_mode;
     // control_mode_out_ = out_mode;
 
+    if (!flags_.parameters_read)
+    {
+      RCLCPP_WARN(node_ptr_->get_logger(), "Can not set mode beacuse parameters are not read yet");
+      return false;
+    }
+
     control_mode_in_.yaw_mode = in_mode.yaw_mode;
     control_mode_in_.control_mode = in_mode.control_mode;
     control_mode_in_.reference_frame = in_mode.reference_frame;
@@ -178,55 +185,49 @@ namespace controller_plugin_differential_flatness
     return true;
   };
 
-  void PDController::readParameters(std::vector<std::string> &params)
+
+  rcl_interfaces::msg::SetParametersResult PDController::parametersCallback(const std::vector<rclcpp::Parameter> &parameters)
   {
-    for (auto it = std::begin(params); it != std::end(params); ++it)
+    rcl_interfaces::msg::SetParametersResult result;
+    result.successful = true;
+    result.reason = "success";
+
+    for (auto &param : parameters)
     {
-      RCLCPP_INFO(node_ptr_->get_logger(), "Declaring parameter: %s", it->c_str());
-      node_ptr_->declare_parameter(*it);
-      parameters_.emplace(*it, 0.0);
-      // RCLCPP_INFO(node_ptr_->get_logger(), "Parameter %s added to parameters_", it->c_str());
-    }
-
-    for (auto &parameter_name :
-         node_ptr_->list_parameters({}, rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE)
-             .names)
-    {
-      RCLCPP_INFO(node_ptr_->get_logger(), "Parameter: %s", parameter_name.c_str());
-
-      // if (parameters_.count(parameter_name))
-      // {
-      //   RCLCPP_INFO(node_ptr_->get_logger(), "Parameter: %s in parameters_", parameter_name.c_str());
-
-      //   if (node_ptr_->get_parameter(parameter_name).get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE)
-      //   {
-      //     RCLCPP_INFO(node_ptr_->get_logger(), "Parameter: %s is double", parameter_name.c_str());
-      //   }
-      //   else
-      //   {
-      //     RCLCPP_INFO(node_ptr_->get_logger(), "Parameter: %s is not double", parameter_name.c_str());
-      //   }
-      // }
-      // else
-      // {
-      //   RCLCPP_INFO(node_ptr_->get_logger(), "Parameter: %s not in parameters_", parameter_name.c_str());
-      // }
-
-      if (parameters_.count(parameter_name) && node_ptr_->get_parameter(parameter_name).get_type() ==
-                                                   rclcpp::ParameterType::PARAMETER_DOUBLE)
+      // check if the parameter is defined in parameters_
+      if (parameters_.find(param.get_name()) != parameters_.end())
       {
-        RCLCPP_INFO(node_ptr_->get_logger(), "Parameter %s modify to parameters_", parameter_name.c_str());
-        parameters_[parameter_name] = node_ptr_->get_parameter(parameter_name).as_double();
-        // parameters_.emplace(parameter_name, node_ptr_->get_parameter(parameter_name).as_double());
+        // RCLCPP_INFO(node_ptr_->get_logger(), "Reading parameter %s with value: %f", param.get_name().c_str(),
+        //             param.get_value<double>());
+        if (parameters_.count(param.get_name()) == 1)
+        {
+          // RCLCPP_INFO(node_ptr_->get_logger(), "Setting parameter %s with value: %f", param.get_name().c_str(),
+          //             param.get_value<double>());
+          parameters_[param.get_name()] = param.get_value<double>();
+        }
       }
       else
       {
-        RCLCPP_INFO(node_ptr_->get_logger(), "Parameter %s not modify to parameters_", parameter_name.c_str());
+        RCLCPP_WARN(node_ptr_->get_logger(), "Parameter %s not defined in parameters_", param.get_name().c_str());
+        result.successful = false;
+        result.reason = "parameter not found";
       }
     }
+    if (result.successful){
+      flags_.parameters_read = true;
+      update_gains(parameters_);
+    }
+    return result;
+  };
 
+  void PDController::declareParameters(std::unordered_map<std::string, double> &params)
+  {
+    for (std::pair<std::string, double> element : parameters_)
+    {
+      node_ptr_->declare_parameter(element.first, element.second);
+    }
     return;
-  }
+  };
 
   void PDController::get_default_parameters()
   {
@@ -638,7 +639,7 @@ namespace controller_plugin_differential_flatness
 
     // RCLCPP_INFO(node_ptr_->get_logger(), "Rot_matrix (1,:): %f %f %f", Rot_matrix(1, 0), Rot_matrix(1, 1),
     //             Rot_matrix(1, 2));
-    
+
     // RCLCPP_INFO(node_ptr_->get_logger(), "Rot_matrix (2,:): %f %f %f", Rot_matrix(2, 0), Rot_matrix(2, 1),
     //             Rot_matrix(2, 2));
 
