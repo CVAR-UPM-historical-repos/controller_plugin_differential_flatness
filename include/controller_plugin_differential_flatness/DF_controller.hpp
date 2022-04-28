@@ -55,7 +55,7 @@
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include "trajectory_msgs/msg/joint_trajectory_point.hpp"
 
-#include "as2_msgs/srv/set_controller_control_mode.hpp"
+// #include "as2_msgs/srv/set_controller_control_mode.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 
 #include <Eigen/Dense>
@@ -131,7 +131,7 @@ namespace controller_plugin_differential_flatness
     Eigen::Matrix3d speed_Kp_lin_mat;
     Eigen::Matrix3d speed_Ki_lin_mat;
 
-    Eigen::Matrix3d Rot_matrix;
+    Eigen::Matrix3d Rot_matrix = Eigen::Matrix3d::Identity();
     float antiwindup_cte_ = 1.0f;
 
     Vector3d f_des_ = Vector3d::Zero();

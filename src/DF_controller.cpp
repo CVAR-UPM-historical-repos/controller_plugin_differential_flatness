@@ -144,7 +144,7 @@ namespace controller_plugin_differential_flatness
 
     if (!flags_.ref_generated)
     {
-      RCLCPP_WARN_ONCE(node_ptr_->get_logger(), "State changed, but ref not recived yet");
+      RCLCPP_WARN(node_ptr_->get_logger(), "State changed, but ref not recived yet");
       computeHOVER(pose, twist, thrust);
     }
     else
@@ -241,7 +241,7 @@ namespace controller_plugin_differential_flatness
                                  0.0);
     Eigen::Vector3d speed_Ki_lin(0.0,
                                  0.0,
-                                 0.1);
+                                 0.01);
 
     Eigen::Vector3d traj_Kp_lin(6.0,
                                 6.0,
@@ -356,7 +356,7 @@ namespace controller_plugin_differential_flatness
 
     refs_[0][1] = 0.0f;
     refs_[1][1] = 0.0f;
-    refs_[2][1] = 1.0f;
+    refs_[2][1] = 0.0f;
     refs_[3][1] = 0.0f;
 
     refs_[0][2] = 0.0f;
