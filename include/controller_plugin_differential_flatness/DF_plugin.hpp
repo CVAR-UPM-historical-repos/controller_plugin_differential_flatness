@@ -1,3 +1,132 @@
+#pragma region DF_controller
+
+#ifndef __DF_CONTROLLER_H__
+#define __DF_CONTROLLER_H__
+
+#include <iostream>
+#include <Eigen/Dense>
+#include "Eigen/src/Core/Matrix.h"
+
+namespace differential_flatness_controller
+{
+  using Vector3d = Eigen::Vector3d;
+
+  struct UAV_state
+  {
+    // State composed of s = [pose ,d_pose]'
+    Vector3d pos;
+    Vector3d rot;
+    Vector3d vel;
+  };
+
+  struct Control_ref
+  {
+    // State composed of s = [pose ,d_pose]'
+    Vector3d pos;
+    Vector3d vel;
+    Vector3d acc;
+    Vector3d yaw;
+  };
+
+  class DFController
+  {
+  public:
+    DFController(const UAV_state& uav_state);
+    ~DFController(){};
+
+  public:
+    uint32_t last_time;
+    uint32_t current_time;
+
+  public:
+    void set_UAV_State(const UAV_state& uav_state);
+    void set_references(const Control_ref& control_ref);
+
+    Eigen::Vector3d get_position_error();
+    Eigen::Vector3d get_velocity_error();
+    void reset_error();
+
+    bool set_parameter(const std::string& param, const double& value);
+    bool get_parameter(const std::string& param, double& value);
+    bool set_Parameter_list(const std::vector<std::pair<std::string, double>> parameter_list);
+    std::vector<std::pair<std::string,double>> get_parameters_list();
+
+    Vector3d compute_velocity_control(const double& dt);
+    Vector3d compute_trajectory_control(const double& dt);
+
+    void computeYawAngleControl(Vector3d &acro, float &thrust);
+    void computeYawSpeedControl(Vector3d &acro, float &thrust);
+
+  private:
+    UAV_state state_;
+    Control_ref ref_;
+
+    Eigen::Vector3d position_accum_error_ = Eigen::Vector3d::Zero();
+    Eigen::Vector3d velocity_accum_error_ = Eigen::Vector3d::Zero();
+
+    const float g = 9.81;
+    const Eigen::Vector3d gravitational_accel_ = Eigen::Vector3d(0, 0, g);
+
+    std::unordered_map<std::string, double> parameters_ = {
+      {"uav_mass", 1.5},
+      {"antiwindup_cte", 1.0},
+      {"alpha", 0.1},
+      {"speed_following.speed_Kp.x", 3.0},
+      {"speed_following.speed_Kp.y", 3.0},
+      {"speed_following.speed_Kp.z", 4.0},
+      {"speed_following.speed_Kd.x", 0.0},
+      {"speed_following.speed_Kd.y", 0.0},
+      {"speed_following.speed_Kd.z", 0.0},
+      {"speed_following.speed_Ki.x", 0.0},
+      {"speed_following.speed_Ki.y", 0.0},
+      {"speed_following.speed_Ki.z", 0.01},
+      {"trajectory_following.position_Kp.x", 6.0},
+      {"trajectory_following.position_Kp.y", 6.0},
+      {"trajectory_following.position_Kp.z", 6.0},
+      {"trajectory_following.position_Kd.x", 0.01},
+      {"trajectory_following.position_Kd.y", 0.01},
+      {"trajectory_following.position_Kd.z", 0.01},
+      {"trajectory_following.position_Ki.x", 3.0},
+      {"trajectory_following.position_Ki.y", 3.0},
+      {"trajectory_following.position_Ki.z", 3.0},
+      {"angular_speed_controller.angular_gain.x", 5.5},
+      {"angular_speed_controller.angular_gain.y", 5.5},
+      {"angular_speed_controller.angular_gain.z", 5.0},
+    };
+
+    Eigen::Matrix3d traj_Kp_lin_mat_ = Eigen::Matrix3d::Identity();
+    Eigen::Matrix3d traj_Ki_lin_mat_ = Eigen::Matrix3d::Identity();
+    Eigen::Matrix3d traj_Kd_lin_mat_ = Eigen::Matrix3d::Identity();
+
+    Eigen::Matrix3d velocity_Kp_lin_mat_ = Eigen::Matrix3d::Identity();
+    Eigen::Matrix3d velocity_Ki_lin_mat_ = Eigen::Matrix3d::Identity();
+    Eigen::Matrix3d velocity_Kd_lin_mat_ = Eigen::Matrix3d::Identity();
+
+    Eigen::Matrix3d Kp_ang_mat_ = Eigen::Matrix3d::Identity();
+
+    Eigen::Matrix3d Rot_matrix_ = Eigen::Matrix3d::Identity();
+    
+    Vector3d f_des_ = Vector3d::Zero();
+    Vector3d acro_ = Vector3d::Zero();
+    float thrust_ = 0.0;
+
+    float mass_ = 1.5f;
+    float antiwindup_cte_ = 1.0f;
+    double alpha_ = 0.1;
+  
+  private:
+    void update_gains_();
+  };
+};
+
+#endif
+
+
+#pragma endregion
+
+
+#pragma region DF_PLUGIN
+
 #ifndef __DF_PLUGIN_H__
 #define __DF_PLUGIN_H__
 
@@ -28,16 +157,15 @@
 // #include "as2_msgs/srv/set_controller_control_mode.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 
-#include <Eigen/Dense>
-#include "Eigen/src/Core/Matrix.h"
-
 #include "controller_plugin_base/controller_base.hpp"
 
-#include "DF_controller.hpp"
+// #include "DF_controller.hpp"
 
 namespace controller_plugin_differential_flatness
 {
   using Vector3d = Eigen::Vector3d;
+  using DFController = differential_flatness_controller::DFController;
+  using UAV_state = differential_flatness_controller::UAV_state;
 
   struct Control_flags
   {
@@ -45,14 +173,6 @@ namespace controller_plugin_differential_flatness
     bool hover_position;
     bool state_received;
     bool parameters_read;
-  };
-
-  struct UAV_state
-  {
-    // State composed of s = [pose ,d_pose]'
-    Vector3d pos;
-    Vector3d rot;
-    Vector3d vel;
   };
 
   class DFPlugin : public controller_plugin_base::ControllerBase
@@ -74,9 +194,6 @@ namespace controller_plugin_differential_flatness
     bool setMode(const as2_msgs::msg::ControlMode &mode_in,
                  const as2_msgs::msg::ControlMode &mode_out) override;
 
-    void get_default_parameters();
-    void update_gains(const std::unordered_map<std::string, double> &params);
-
     rcl_interfaces::msg::SetParametersResult parametersCallback(const std::vector<rclcpp::Parameter> &parameters);
 
   private:
@@ -85,70 +202,13 @@ namespace controller_plugin_differential_flatness
     as2_msgs::msg::ControlMode control_mode_in_;
     as2_msgs::msg::ControlMode control_mode_out_;
 
-    UAV_state state_;
     Control_flags flags_;
 
-    float mass = 1.5f;
-    const float g = 9.81;
-    const Eigen::Vector3d gravitational_accel = Eigen::Vector3d(0, 0, g);
-
-    Eigen::Vector3d accum_error_;
-
-    Eigen::Matrix3d Kp_ang_mat;
-
-    Eigen::Matrix3d traj_Kd_lin_mat;
-    Eigen::Matrix3d traj_Kp_lin_mat;
-    Eigen::Matrix3d traj_Ki_lin_mat;
-
-    Eigen::Matrix3d speed_Kd_lin_mat;
-    Eigen::Matrix3d speed_Kp_lin_mat;
-    Eigen::Matrix3d speed_Ki_lin_mat;
-
-    Eigen::Matrix3d Rot_matrix = Eigen::Matrix3d::Identity();
-    float antiwindup_cte_ = 1.0f;
-
-    Vector3d f_des_ = Vector3d::Zero();
-    Vector3d acro_ = Vector3d::Zero();
-    float thrust_ = 0.0;
-
-    std::array<std::array<float, 3>, 4> refs_;
-
-    // List of string names for the parameters
-
-    std::unordered_map<std::string, double> parameters_ = {
-        {"uav_mass", 1.5},
-        {"antiwindup_cte", 1.0},
-        {"speed_following.speed_Kp.x", 3.0},
-        {"speed_following.speed_Kp.y", 3.0},
-        {"speed_following.speed_Kp.z", 4.0},
-        {"speed_following.speed_Kd.x", 0.0},
-        {"speed_following.speed_Kd.y", 0.0},
-        {"speed_following.speed_Kd.z", 0.0},
-        {"speed_following.speed_Ki.x", 0.0},
-        {"speed_following.speed_Ki.y", 0.0},
-        {"speed_following.speed_Ki.z", 0.01},
-        {"trajectory_following.position_Kp.x", 6.0},
-        {"trajectory_following.position_Kp.y", 6.0},
-        {"trajectory_following.position_Kp.z", 6.0},
-        {"trajectory_following.position_Kd.x", 0.01},
-        {"trajectory_following.position_Kd.y", 0.01},
-        {"trajectory_following.position_Kd.z", 0.01},
-        {"trajectory_following.position_Ki.x", 3.0},
-        {"trajectory_following.position_Ki.y", 3.0},
-        {"trajectory_following.position_Ki.z", 3.0},
-        {"angular_speed_controller.angular_gain.x", 5.5},
-        {"angular_speed_controller.angular_gain.y", 5.5},
-        {"angular_speed_controller.angular_gain.z", 5.0},
-    };
+    std::shared_ptr<DFController> controller_handler_;
 
   private:
+    void set_default_parameters();
     void declareParameters(std::unordered_map<std::string, double> &params);
-
-    void resetState();
-    void initialize_references();
-    void reset_references();
-    void resetErrors();
-    void resetCommands();
 
     void computeActions(
         geometry_msgs::msg::PoseStamped &pose,
@@ -159,17 +219,17 @@ namespace controller_plugin_differential_flatness
         geometry_msgs::msg::PoseStamped &pose,
         geometry_msgs::msg::TwistStamped &twist,
         as2_msgs::msg::Thrust &thrust);
-
-    Vector3d computeSpeedControl();
-    Vector3d computeTrajectoryControl();
-
-    void computeYawAngleControl(Vector3d &acro, float &thrust);
-    void computeYawSpeedControl(Vector3d &acro, float &thrust);
-
+    
     void getOutput(geometry_msgs::msg::PoseStamped &pose_msg,
                    geometry_msgs::msg::TwistStamped &twist_msg,
                    as2_msgs::msg::Thrust &thrust_msg);
+
+    void resetState();
+    void initialize_references();
+    void reset_references();
+    void reset_commands();
   };
 };
 
 #endif
+#pragma endregion
