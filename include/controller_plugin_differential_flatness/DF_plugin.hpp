@@ -13,15 +13,13 @@ namespace differential_flatness_controller
 
   struct UAV_state
   {
-    // State composed of s = [pose ,d_pose]'
     Vector3d pos;
-    Vector3d rot;
     Vector3d vel;
+    Eigen::Matrix3d rot;
   };
 
   struct Control_ref
   {
-    // State composed of s = [pose ,d_pose]'
     Vector3d pos;
     Vector3d vel;
     Vector3d acc;
@@ -31,31 +29,55 @@ namespace differential_flatness_controller
   class DFController
   {
   public:
-    DFController(const UAV_state& uav_state);
+    DFController();
     ~DFController(){};
 
   public:
-    uint32_t last_time;
-    uint32_t current_time;
+    // void set_uav_state(const UAV_state& uav_state);
+    // void set_references(const Control_ref& control_ref);
 
-  public:
-    void set_UAV_State(const UAV_state& uav_state);
-    void set_references(const Control_ref& control_ref);
+    Eigen::Vector3d getPositionError();
+    Eigen::Vector3d getVelocityError();
+    void resetError();
 
-    Eigen::Vector3d get_position_error();
-    Eigen::Vector3d get_velocity_error();
-    void reset_error();
+    bool setParameter(const std::string &param, const double &value);
+    bool getParameter(const std::string &param, double &value);
+    bool isParameter(const std::string &param);
+    bool setParametersList(const std::vector<std::pair<std::string, double>> &parameter_list);
+    std::vector<std::pair<std::string, double>> getParametersList();
 
-    bool set_parameter(const std::string& param, const double& value);
-    bool get_parameter(const std::string& param, double& value);
-    bool set_Parameter_list(const std::vector<std::pair<std::string, double>> parameter_list);
-    std::vector<std::pair<std::string,double>> get_parameters_list();
+    Vector3d computeVelocityControl(
+      const UAV_state &state_,
+      const Control_ref &ref_,
+      const double &dt
+    );
 
-    Vector3d compute_velocity_control(const double& dt);
-    Vector3d compute_trajectory_control(const double& dt);
+    Vector3d computeTrajectoryControl(
+      const UAV_state &state,
+      const Control_ref &ref,
+      const double &dt
+    );
 
-    void computeYawAngleControl(Vector3d &acro, float &thrust);
-    void computeYawSpeedControl(Vector3d &acro, float &thrust);
+    void computeYawAngleControl(
+      // Input
+      const UAV_state &state,
+      const float &yaw_angle_ref,
+      const Vector3d &force_des,
+      // Output
+      Vector3d &acro, 
+      float &thrust
+    );
+
+    void computeYawSpeedControl(
+      // Input
+      const UAV_state &state,
+      const float &yaw_speed_ref,
+      const Vector3d &force_des,
+      const double &dt,
+      // Output
+      Vector3d &acro, 
+      float &thrust
+    );
 
   private:
     UAV_state state_;
@@ -103,8 +125,6 @@ namespace differential_flatness_controller
     Eigen::Matrix3d velocity_Kd_lin_mat_ = Eigen::Matrix3d::Identity();
 
     Eigen::Matrix3d Kp_ang_mat_ = Eigen::Matrix3d::Identity();
-
-    Eigen::Matrix3d Rot_matrix_ = Eigen::Matrix3d::Identity();
     
     Vector3d f_des_ = Vector3d::Zero();
     Vector3d acro_ = Vector3d::Zero();
@@ -115,7 +135,7 @@ namespace differential_flatness_controller
     double alpha_ = 0.1;
   
   private:
-    void update_gains_();
+    void updateGains_();
   };
 };
 
@@ -166,13 +186,13 @@ namespace controller_plugin_differential_flatness
   using Vector3d = Eigen::Vector3d;
   using DFController = differential_flatness_controller::DFController;
   using UAV_state = differential_flatness_controller::UAV_state;
+  using Control_ref = differential_flatness_controller::Control_ref;
 
   struct Control_flags
   {
-    bool ref_generated;
-    bool hover_position;
-    bool state_received;
     bool parameters_read;
+    bool state_received;
+    bool ref_received;
   };
 
   class DFPlugin : public controller_plugin_base::ControllerBase
@@ -206,9 +226,42 @@ namespace controller_plugin_differential_flatness
 
     std::shared_ptr<DFController> controller_handler_;
 
+    UAV_state uav_state_;
+    Control_ref control_ref_;
+
+    Vector3d f_des_ = Vector3d::Zero();
+    Vector3d acro_ = Vector3d::Zero();
+    float thrust_ = 0.0;
+
+    std::vector<std::string> parameters_to_read_ = {
+      "uav_mass",
+      "antiwindup_cte",
+      "alpha",
+      "speed_following.speed_Kp.x",
+      "speed_following.speed_Kp.y",
+      "speed_following.speed_Kp.z",
+      "speed_following.speed_Kd.x",
+      "speed_following.speed_Kd.y",
+      "speed_following.speed_Kd.z",
+      "speed_following.speed_Ki.x",
+      "speed_following.speed_Ki.y",
+      "speed_following.speed_Ki.z",
+      "trajectory_following.position_Kp.x",
+      "trajectory_following.position_Kp.y",
+      "trajectory_following.position_Kp.z",
+      "trajectory_following.position_Kd.x", 
+      "trajectory_following.position_Kd.y", 
+      "trajectory_following.position_Kd.z",
+      "trajectory_following.position_Ki.x",
+      "trajectory_following.position_Ki.y",
+      "trajectory_following.position_Ki.z",
+      "angular_speed_controller.angular_gain.x",
+      "angular_speed_controller.angular_gain.y",
+      "angular_speed_controller.angular_gain.z",
+    };
+
   private:
-    void set_default_parameters();
-    void declareParameters(std::unordered_map<std::string, double> &params);
+    void declareParameters();
 
     void computeActions(
         geometry_msgs::msg::PoseStamped &pose,
@@ -225,9 +278,8 @@ namespace controller_plugin_differential_flatness
                    as2_msgs::msg::Thrust &thrust_msg);
 
     void resetState();
-    void initialize_references();
-    void reset_references();
-    void reset_commands();
+    void resetReferences();
+    void resetCommands();
   };
 };
 
