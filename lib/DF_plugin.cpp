@@ -312,6 +312,7 @@ namespace controller_plugin_differential_flatness
 
   void DFPlugin::updateState(const nav_msgs::msg::Odometry &odom)
   {
+    RCLCPP_INFO(node_ptr_->get_logger(), "DFPlugin::updateState");
     uav_state_.pos = Vector3d(
       odom.pose.pose.position.x, 
       odom.pose.pose.position.y, 
@@ -343,6 +344,8 @@ namespace controller_plugin_differential_flatness
     {
       return;
     }
+
+    RCLCPP_INFO(node_ptr_->get_logger(), "DFPlugin::updateReference");
 
     control_ref_.vel = Vector3d(
       twist_msg.twist.linear.x, 
@@ -390,7 +393,8 @@ namespace controller_plugin_differential_flatness
       control_mode_in_.control_mode == as2_msgs::msg::ControlMode::SPEED ||
       control_mode_in_.yaw_mode == as2_msgs::msg::ControlMode::YAW_ANGLE
     ) {
-      control_ref_.yaw[0] = traj_msg.positions[4];
+      //control_ref_.yaw[0] = traj_msg.positions[4];
+      control_ref_.yaw[0] = 0.0;
     }
 
     flags_.ref_received = true;
@@ -401,6 +405,9 @@ namespace controller_plugin_differential_flatness
                                    geometry_msgs::msg::TwistStamped &twist,
                                    as2_msgs::msg::Thrust &thrust)
   {
+
+    RCLCPP_INFO(node_ptr_->get_logger(), "Control mode: %d", control_mode_in_.control_mode);
+
 
     if (!flags_.state_received)
     {
@@ -416,8 +423,9 @@ namespace controller_plugin_differential_flatness
 
     if (!flags_.ref_received)
     {
-      RCLCPP_WARN_ONCE(node_ptr_->get_logger(), "State changed, but ref not recived yet");
-      computeHOVER(pose, twist, thrust);
+      RCLCPP_WARN(node_ptr_->get_logger(), "State changed, but ref not recived yet");
+      return;
+      //computeHOVER(pose, twist, thrust);
     }
     else
     {
