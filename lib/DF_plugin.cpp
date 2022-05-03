@@ -45,6 +45,26 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
+  void DFPlugin::updateReference(const geometry_msgs::msg::PoseStamped &pose_msg)
+  {
+    if (control_mode_in_.control_mode != as2_msgs::msg::ControlMode::SPEED ||
+        control_mode_in_.yaw_mode != as2_msgs::msg::ControlMode::YAW_ANGLE)
+    {
+      return;
+    }
+
+    Eigen::Quaterniond q(
+        pose_msg.pose.orientation.w,
+        pose_msg.pose.orientation.x,
+        pose_msg.pose.orientation.y,
+        pose_msg.pose.orientation.z);
+
+    control_ref_.yaw[0] = q.toRotationMatrix().eulerAngles(0, 1, 2)[2];
+
+    flags_.ref_received = true;
+    return;
+  };
+
   void DFPlugin::updateReference(const geometry_msgs::msg::TwistStamped &twist_msg)
   {
     if (control_mode_in_.control_mode != as2_msgs::msg::ControlMode::SPEED)
@@ -68,35 +88,30 @@ namespace controller_plugin_differential_flatness
 
   void DFPlugin::updateReference(const trajectory_msgs::msg::JointTrajectoryPoint &traj_msg)
   {
-    if (control_mode_in_.control_mode == as2_msgs::msg::ControlMode::TRAJECTORY)
+    if (control_mode_in_.control_mode != as2_msgs::msg::ControlMode::TRAJECTORY)
     {
-      control_ref_.pos = Vector3d(
-          traj_msg.positions[0],
-          traj_msg.positions[1],
-          traj_msg.positions[2]);
-
-      control_ref_.vel = Vector3d(
-          traj_msg.velocities[0],
-          traj_msg.velocities[1],
-          traj_msg.velocities[2]);
-
-      control_ref_.acc = Vector3d(
-          traj_msg.accelerations[0],
-          traj_msg.accelerations[1],
-          traj_msg.accelerations[2]);
-
-      control_ref_.yaw = Vector3d(
-          traj_msg.positions[4],
-          traj_msg.velocities[4],
-          traj_msg.accelerations[4]);
+      return;
     }
-    else if (
-        control_mode_in_.control_mode == as2_msgs::msg::ControlMode::SPEED &&
-        control_mode_in_.yaw_mode == as2_msgs::msg::ControlMode::YAW_ANGLE)
-    {
-      // TODO: yaw read in traj?
-      control_ref_.yaw[0] = 0.0;
-    }
+
+    control_ref_.pos = Vector3d(
+        traj_msg.positions[0],
+        traj_msg.positions[1],
+        traj_msg.positions[2]);
+
+    control_ref_.vel = Vector3d(
+        traj_msg.velocities[0],
+        traj_msg.velocities[1],
+        traj_msg.velocities[2]);
+
+    control_ref_.acc = Vector3d(
+        traj_msg.accelerations[0],
+        traj_msg.accelerations[1],
+        traj_msg.accelerations[2]);
+
+    control_ref_.yaw = Vector3d(
+        traj_msg.positions[4],
+        traj_msg.velocities[4],
+        traj_msg.accelerations[4]);
 
     flags_.ref_received = true;
     return;

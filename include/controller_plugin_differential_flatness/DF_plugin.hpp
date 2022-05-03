@@ -45,6 +45,8 @@ namespace controller_plugin_differential_flatness
   public:
     void ownInitialize() override;
     void updateState(const nav_msgs::msg::Odometry &odom) override;
+
+    void updateReference(const geometry_msgs::msg::PoseStamped &ref) override;
     void updateReference(const geometry_msgs::msg::TwistStamped &ref) override;
     void updateReference(const trajectory_msgs::msg::JointTrajectoryPoint &ref) override;
 
