@@ -4,6 +4,7 @@
   ros__parameters:
     uav_mass: 1.5
     antiwindup_cte : 1.0
+    alpha: 0.1
     trajectory_following:
       position_Kp:
         x: 6.0

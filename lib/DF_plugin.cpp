@@ -7,6 +7,7 @@ namespace differential_flatness_controller
   DFController::DFController()
   {
     resetError();
+    updateGains_(); // TODO: remove this
   };
 
 
@@ -108,7 +109,7 @@ namespace differential_flatness_controller
     // Compute anti-windup. Limit integral contribution
     for (short j = 0; j < 3; j++) {
       float antiwindup_value = antiwindup_cte_ / velocity_Ki_lin_mat_.diagonal()[j];
-      velocity_accum_error_[j] = (velocity_accum_error_[j] >  antiwindup_value) ? antiwindup_value : velocity_accum_error_[j];
+      velocity_accum_error_[j] = (velocity_accum_error_[j] >  antiwindup_value) ?  antiwindup_value : velocity_accum_error_[j];
       velocity_accum_error_[j] = (velocity_accum_error_[j] < -antiwindup_value) ? -antiwindup_value : velocity_accum_error_[j];
     }
 
@@ -123,6 +124,38 @@ namespace differential_flatness_controller
 
     // Return desired force with the gravity compensation
     Vector3d desired_force = mass_ * desired_acceleration + force_gravity;
+
+    // std::cout << "Mass (kg): " << mass_ << std::endl;
+    // std::cout << "Gravity (m/s^2): " << gravitational_accel_(0) << ", " << gravitational_accel_(1) << ", " << gravitational_accel_(2) << std::endl;
+    // std::cout << "Dt (s): " << dt << std::endl;
+    // std::cout << "velocity Kp (x,y,z): " << velocity_Kp_lin_mat_(0, 0) << ", " << velocity_Kp_lin_mat_(1, 1) << ", " << velocity_Kp_lin_mat_(2, 2) << std::endl;
+    // std::cout << "velocity Ki (x,y,z): " << velocity_Ki_lin_mat_(0, 0) << ", " << velocity_Ki_lin_mat_(1, 1) << ", " << velocity_Ki_lin_mat_(2, 2) << std::endl;
+    // std::cout << "velocity Kd (x,y,z): " << velocity_Kd_lin_mat_(0, 0) << ", " << velocity_Kd_lin_mat_(1, 1) << ", " << velocity_Kd_lin_mat_(2, 2) << std::endl;
+    // std::cout << "\n";
+
+    // std::cout << "Velocity state (x,y,z): " << state_.vel(0) << ", " << state_.vel(1) << ", " << state_.vel(2) << std::endl;
+    // std::cout << "Velocity reference (x,y,z): " << ref.vel(0) << ", " << ref.vel(1) << ", " << ref.vel(2) << std::endl;
+    // std::cout << "\n";
+
+    // std::cout << "Velocity error (x, y, z): " << velocity_error(0) << ", " << velocity_error(1) << ", " << velocity_error(2) << std::endl;
+    // std::cout << "Velocity error derivative (x, y, z): " << filtered_d_velocity_error_(0)/dt << ", " << filtered_d_velocity_error_(1)/dt << ", " << filtered_d_velocity_error_(2)/dt << std::endl;
+    // std::cout << "Velocity error integral (x, y, z): " << velocity_accum_error_(0) << ", " << velocity_accum_error_(1) << ", " << velocity_accum_error_(2) << std::endl;
+    // std::cout << "\n";
+
+    // std::cout << "Velocity error contribution (x, y, z): " << p_velocity_error_contribution(0) << ", " << p_velocity_error_contribution(1) << ", " << p_velocity_error_contribution(2) << std::endl;
+    // std::cout << "Velocity error derivative contribution (x, y, z): " << d_velocity_error_contribution(0) << ", " << d_velocity_error_contribution(1) << ", " << d_velocity_error_contribution(2) << std::endl;
+    // std::cout << "Velocity error integral contribution (x, y, z): " << i_velocity_error_contribution(0) << ", " << i_velocity_error_contribution(1) << ", " << i_velocity_error_contribution(2) << std::endl;
+    // std::cout << "\n";
+
+    
+
+    // std::cout << "Desired acceleration (x,y,z): " << desired_acceleration(0) << ", " << desired_acceleration(1) << ", " << desired_acceleration(2) << std::endl;
+    // std::cout << "Gravity force (x,y,z): " << force_gravity(0) << ", " << force_gravity(1) << ", " << force_gravity(2) << std::endl;
+
+    // std::cout << "Desired force (x,y,z): " << desired_force(0) << ", " << desired_force(1) << ", " << desired_force(2) << std::endl;
+    // std::cout << "\n\n";
+
+
     return desired_force;
   };
 
@@ -203,13 +236,27 @@ namespace differential_flatness_controller
     acro[1] = outputs(1);  // PITCH
     acro[2] = outputs(2);  // YAW
 
+    std::cout << "R_des(0,:):" << R_des(0,0) << ", " << R_des(0,1) << ", " << R_des(0,2) << std::endl;
+    std::cout << "R_des(1,:):" << R_des(1,0) << ", " << R_des(1,1) << ", " << R_des(1,2) << std::endl;
+    std::cout << "R_des(2,:):" << R_des(2,0) << ", " << R_des(2,1) << ", " << R_des(2,2) << std::endl;
+
+    std::cout << "rot(0,:):" << state.rot(0,0) << ", " << state.rot(0,1) << ", " << state.rot(0,2) << std::endl;
+    std::cout << "rot(1,:):" << state.rot(1,0) << ", " << state.rot(1,1) << ", " << state.rot(1,2) << std::endl;
+    std::cout << "rot(2,:):" << state.rot(2,0) << ", " << state.rot(2,1) << ", " << state.rot(2,2) << std::endl;
+
+    std::cout << "V Rot error: " << V_e_rot(0) << V_e_rot(1) << V_e_rot(2) << std::endl;
+    std::cout << "Rot error: " << V_e_rot << std::endl;
+    std::cout << "Thrust: " << thrust << std::endl;
+    std::cout << "Acro: " << acro[0] << ", " << acro[1] << ", " << acro[2] << std::endl;
+    std::cout << "\n\n";
+
     return;
   };
 
   void DFController::computeYawSpeedControl(
     // Input
     const UAV_state &state,
-    const float &yaw_speed_ref,
+    const float &yaw_speed_ref2,
     const Vector3d &force_des,
     const double &dt,
     // Output
@@ -217,12 +264,28 @@ namespace differential_flatness_controller
     float &thrust
   ) {
 
+    Vector3d desired_position_ = Vector3d(20, 0, 0);
+    Vector3d speed_setpoint = desired_position_ - state.pos;
+    float yaw_speed_ref = -atan2f((double)speed_setpoint.x(), (double)speed_setpoint.y()) + 3.14159265358979323846 / 2.0f;
+
     float yaw_state = state.rot.eulerAngles(0, 1, 2)[2];
     float yaw_angle_ref = yaw_state + yaw_speed_ref * dt;
+    // float yaw_angle_ref = 0.785398; // TODO: remove this line
+
+    std::cout << "Desired position (x,y): " << desired_position_(0) << ", " << desired_position_(1) << std::endl;
+    std::cout << "State position (x,y): " << state.pos(0) << ", " << state.pos(1) << std::endl;
+    std::cout << "Speed setpoint (x,y): " << speed_setpoint(0) << ", " << speed_setpoint(1) << std::endl;
+    std::cout << "Yaw speed ref: " << yaw_speed_ref << std::endl;
+
+    std::cout << "Yaw angle state: " << yaw_state << std::endl;
+    std::cout << "Yaw angle ref dt: " << yaw_angle_ref << std::endl;
+    std::cout << "Desired force (x,y,z): " << force_des(0) << ", " << force_des(1) << ", " << force_des(2) << std::endl;
+    std::cout << "Dt (s): " << dt << std::endl;
+    std::cout << "\n";
     
     computeYawAngleControl(
       state,
-      yaw_angle_ref,
+      yaw_speed_ref,
       force_des,
       acro, 
       thrust
@@ -233,7 +296,7 @@ namespace differential_flatness_controller
 
   void DFController::updateGains_()
   {
-    mass_ = parameters_["mass"];
+    mass_ = parameters_["uav_mass"];
     antiwindup_cte_ = parameters_["antiwindup_cte"];
     alpha_ = parameters_["alpha"];
 
@@ -312,7 +375,7 @@ namespace controller_plugin_differential_flatness
 
   void DFPlugin::updateState(const nav_msgs::msg::Odometry &odom)
   {
-    RCLCPP_INFO(node_ptr_->get_logger(), "DFPlugin::updateState");
+    // RCLCPP_INFO(node_ptr_->get_logger(), "DFPlugin::updateState");
     uav_state_.pos = Vector3d(
       odom.pose.pose.position.x, 
       odom.pose.pose.position.y, 
@@ -345,7 +408,7 @@ namespace controller_plugin_differential_flatness
       return;
     }
 
-    RCLCPP_INFO(node_ptr_->get_logger(), "DFPlugin::updateReference");
+    // RCLCPP_INFO(node_ptr_->get_logger(), "DFPlugin::updateReference");
 
     control_ref_.vel = Vector3d(
       twist_msg.twist.linear.x, 
@@ -354,7 +417,10 @@ namespace controller_plugin_differential_flatness
     );
 
     if (control_mode_in_.yaw_mode == as2_msgs::msg::ControlMode::YAW_SPEED) {
+      RCLCPP_INFO(node_ptr_->get_logger(), "Yaw speed reference update: %f", twist_msg.twist.angular.z);
       control_ref_.yaw[1] = twist_msg.twist.angular.z;
+    } else {
+      RCLCPP_WARN(node_ptr_->get_logger(), "Yaw not it speed mode");
     }
 
     flags_.ref_received = true;
@@ -390,10 +456,11 @@ namespace controller_plugin_differential_flatness
       );
     }
     else if (
-      control_mode_in_.control_mode == as2_msgs::msg::ControlMode::SPEED ||
+      control_mode_in_.control_mode == as2_msgs::msg::ControlMode::SPEED &&
       control_mode_in_.yaw_mode == as2_msgs::msg::ControlMode::YAW_ANGLE
     ) {
       //control_ref_.yaw[0] = traj_msg.positions[4];
+      RCLCPP_WARN(node_ptr_->get_logger(), "Yaw not in trajectory mode");
       control_ref_.yaw[0] = 0.0;
     }
 
@@ -406,8 +473,7 @@ namespace controller_plugin_differential_flatness
                                    as2_msgs::msg::Thrust &thrust)
   {
 
-    RCLCPP_INFO(node_ptr_->get_logger(), "Control mode: %d", control_mode_in_.control_mode);
-
+    // RCLCPP_INFO(node_ptr_->get_logger(), "Control mode: %d", control_mode_in_.control_mode);
 
     if (!flags_.state_received)
     {
