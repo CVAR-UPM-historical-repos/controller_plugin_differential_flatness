@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
 set(PROJECT_NAME controller_plugin_differential_flatness)
-set(DFLIB DF_controller)
 project(${PROJECT_NAME})
 
 # Default to C99
@@ -51,16 +50,13 @@ endforeach()
 # add_library(${PROJECT_NAME} ${SOURCE_CPP_FILES})
 # target_link_libraries(${PROJECT_NAME} ${PROJECT_DEPENDENCIES})
 
-
-
 include_directories(
   include
   include/${PROJECT_NAME}
   ${EIGEN3_INCLUDE_DIRS}
 )
 
-add_library(${PROJECT_NAME} SHARED lib/DF_plugin.cpp )
-# add_library(${DFLIB} SHARED lib/DF_controller.cpp )
+add_library(${PROJECT_NAME} SHARED lib/DF_controller.cpp lib/DF_plugin.cpp)
 
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
