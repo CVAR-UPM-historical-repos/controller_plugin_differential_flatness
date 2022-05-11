@@ -163,7 +163,7 @@ namespace differential_flatness_controller
     Vector3d force_gravity = mass_ * gravitational_accel_;
 
     // Return desired force with the gravity compensation
-    Vector3d desired_force = -force_error + force_acceleration + force_gravity;
+    Vector3d desired_force = force_error + force_acceleration + force_gravity;
     return desired_force;
   }
 
