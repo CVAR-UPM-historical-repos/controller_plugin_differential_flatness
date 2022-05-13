@@ -18,7 +18,6 @@
   <depend>nav_msgs</depend>
   <depend>as2_core</depend>
   <depend>as2_msgs</depend>
-  <depend>as2_motion_command_handlers</depend>
   <depend>pluginlib</depend>
   <depend>controller_plugin_base</depend>
   

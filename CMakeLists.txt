@@ -12,7 +12,6 @@ if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 17)
 endif()
 
-
 # find dependencies
 
 set(PROJECT_DEPENDENCIES
@@ -27,7 +26,6 @@ set(PROJECT_DEPENDENCIES
   pluginlib
   as2_core
   as2_msgs
-  as2_control_command_handlers
   std_srvs
   controller_plugin_base
 )
