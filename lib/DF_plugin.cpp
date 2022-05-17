@@ -59,7 +59,7 @@ namespace controller_plugin_differential_flatness
         pose_msg.pose.orientation.y,
         pose_msg.pose.orientation.z);
 
-    control_ref_.yaw[0] = q.toRotationMatrix().eulerAngles(0, 1, 2)[2];
+    control_ref_.yaw[0] = q.toRotationMatrix().eulerAngles(2, 0, 1)[0];
 
     flags_.ref_received = true;
     return;
@@ -137,8 +137,8 @@ namespace controller_plugin_differential_flatness
     if (!flags_.ref_received)
     {
       RCLCPP_WARN(node_ptr_->get_logger(), "State changed, but ref not recived yet");
+      computeHOVER(pose, twist, thrust);
       return;
-      // computeHOVER(pose, twist, thrust);
     }
     else
     {
