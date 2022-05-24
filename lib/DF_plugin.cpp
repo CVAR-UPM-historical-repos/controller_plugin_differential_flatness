@@ -109,9 +109,9 @@ namespace controller_plugin_differential_flatness
         traj_msg.accelerations[2]);
 
     control_ref_.yaw = Vector3d(
-        traj_msg.positions[4],
-        traj_msg.velocities[4],
-        traj_msg.accelerations[4]);
+        traj_msg.positions[3],
+        traj_msg.velocities[3],
+        traj_msg.accelerations[3]);
 
     flags_.ref_received = true;
     return;
