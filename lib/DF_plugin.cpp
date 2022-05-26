@@ -41,10 +41,11 @@ void DFPlugin::updateReference(const geometry_msgs::msg::PoseStamped &pose_msg) 
     return;
   }
 
-  tf2::Quaternion q(pose_msg.pose.orientation.w, pose_msg.pose.orientation.x,
-                    pose_msg.pose.orientation.y, pose_msg.pose.orientation.z);
+  tf2::Quaternion q(pose_msg.pose.orientation.x, pose_msg.pose.orientation.y,
+                    pose_msg.pose.orientation.z, pose_msg.pose.orientation.w);
 
   tf2::Matrix3x3 m(q);
+  
   double roll, pitch, yaw;
   m.getRPY(roll, pitch, yaw);
 
