@@ -177,6 +177,13 @@ namespace differential_flatness_controller
       float &thrust)
   {
 
+    tf2::Matrix3x3 rot_matrix_tf2(state.rot);
+
+    Eigen::Matrix3d rot_matrix;
+    rot_matrix << rot_matrix_tf2[0][0], rot_matrix_tf2[0][1], rot_matrix_tf2[0][2],
+                  rot_matrix_tf2[1][0], rot_matrix_tf2[1][1], rot_matrix_tf2[1][2],
+                  rot_matrix_tf2[2][0], rot_matrix_tf2[2][1], rot_matrix_tf2[2][2];
+
     Vector3d xc_des(cos(yaw_angle_ref), sin(yaw_angle_ref), 0);
 
     Vector3d zb_des = force_des.normalized();
@@ -190,12 +197,12 @@ namespace differential_flatness_controller
     R_des.col(2) = zb_des;
 
     // Compute the rotation matrix error
-    Eigen::Matrix3d Mat_e_rot = (R_des.transpose() * state.rot - state.rot.transpose() * R_des);
+    Eigen::Matrix3d Mat_e_rot = (R_des.transpose() * rot_matrix - rot_matrix.transpose() * R_des);
 
     Vector3d V_e_rot(Mat_e_rot(2, 1), Mat_e_rot(0, 2), Mat_e_rot(1, 0));
     Vector3d E_rot = (1.0f / 2.0f) * V_e_rot;
 
-    thrust = (float)force_des.dot(state.rot.col(2).normalized());
+    thrust = (float)force_des.dot(rot_matrix.col(2).normalized());
 
     Vector3d outputs = -Kp_ang_mat_ * E_rot;
 
@@ -217,12 +224,15 @@ namespace differential_flatness_controller
       float &thrust)
   {
 
-    float yaw_state = state.rot.eulerAngles(0, 1, 2)[2];
-    float yaw_angle_ref = yaw_state + yaw_speed_ref * dt;
+    tf2::Matrix3x3 m(state.rot);
+    double roll, pitch, yaw;
+    m.getRPY(roll, pitch, yaw);
+
+    float yaw_angle_ref = yaw + yaw_speed_ref * dt;
 
     computeYawAngleControl(
         state,
-        yaw_speed_ref,
+        yaw_angle_ref,
         force_des,
         acro,
         thrust);

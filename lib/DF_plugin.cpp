@@ -26,10 +26,13 @@ void DFPlugin::updateState(const nav_msgs::msg::Odometry &odom) {
   uav_state_.vel =
       Vector3d(odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.linear.z);
 
-  Eigen::Quaterniond q(odom.pose.pose.orientation.w, odom.pose.pose.orientation.x,
-                       odom.pose.pose.orientation.y, odom.pose.pose.orientation.z);
-
-  uav_state_.rot = q.toRotationMatrix();
+  tf2::Quaternion q(
+    odom.pose.pose.orientation.x, 
+    odom.pose.pose.orientation.y,
+    odom.pose.pose.orientation.z, 
+    odom.pose.pose.orientation.w);
+  
+  uav_state_.rot = q;
 
   flags_.state_received = true;
   return;
@@ -41,18 +44,17 @@ void DFPlugin::updateReference(const geometry_msgs::msg::PoseStamped &pose_msg) 
     return;
   }
 
-  tf2::Quaternion q(pose_msg.pose.orientation.x, pose_msg.pose.orientation.y,
-                    pose_msg.pose.orientation.z, pose_msg.pose.orientation.w);
+  tf2::Quaternion q(
+    pose_msg.pose.orientation.x, 
+    pose_msg.pose.orientation.y,
+    pose_msg.pose.orientation.z, 
+    pose_msg.pose.orientation.w);
 
   tf2::Matrix3x3 m(q);
   
   double roll, pitch, yaw;
   m.getRPY(roll, pitch, yaw);
 
-  // Eigen::Quaterniond q(pose_msg.pose.orientation.w, pose_msg.pose.orientation.x,
-  //                      pose_msg.pose.orientation.y, pose_msg.pose.orientation.z);
-
-  // control_ref_.yaw[0] = q.toRotationMatrix().eulerAngles(2, 0, 1)[0];
   control_ref_.yaw[0] = yaw;
 
   flags_.ref_received = true;
@@ -226,12 +228,14 @@ void DFPlugin::computeActions(geometry_msgs::msg::PoseStamped &pose,
           acro_, thrust_);
       break;
     case as2_msgs::msg::ControlMode::YAW_SPEED:
+    {
       controller_handler_->computeYawSpeedControl(
           // Input
           uav_state_, control_ref_.yaw[1], f_des_, dt,
           // Output
           acro_, thrust_);
       break;
+    }
     default:
       RCLCPP_ERROR_ONCE(node_ptr_->get_logger(), "Unknown yaw mode");
       return;
@@ -262,11 +266,31 @@ void DFPlugin::computeHOVER(geometry_msgs::msg::PoseStamped &pose,
   resetCommands();
   f_des_ = controller_handler_->computeTrajectoryControl(uav_state_, hover_ref_, dt);
 
-  controller_handler_->computeYawAngleControl(
-      // Input
-      uav_state_, control_ref_.yaw[0], f_des_,
-      // Output
-      acro_, thrust_);
+
+  // RCLCPP_INFO(node_ptr_->get_logger(), "HOVERING IN SPEED");
+
+  switch (control_mode_in_.yaw_mode) {
+    case as2_msgs::msg::ControlMode::YAW_ANGLE:
+      controller_handler_->computeYawAngleControl(
+          // Input
+          uav_state_, control_ref_.yaw[0], f_des_,
+          // Output
+          acro_, thrust_);
+      break;
+    case as2_msgs::msg::ControlMode::YAW_SPEED:
+    {
+      controller_handler_->computeYawSpeedControl(
+          // Input
+          uav_state_, control_ref_.yaw[1], f_des_, dt,
+          // Output
+          acro_, thrust_);
+      break;
+    }
+    default:
+      RCLCPP_ERROR_ONCE(node_ptr_->get_logger(), "Unknown yaw mode");
+      return;
+      break;
+  }
 
   getOutput(pose, twist, thrust);
   return;
@@ -291,7 +315,7 @@ void DFPlugin::getOutput(geometry_msgs::msg::PoseStamped &pose_msg,
 void DFPlugin::resetState() {
   uav_state_.pos = Vector3d::Zero();
   uav_state_.vel = Vector3d::Zero();
-  uav_state_.rot = Eigen::Matrix3d::Identity();
+  uav_state_.rot = tf2::Quaternion::getIdentity();
   return;
 };
 
@@ -300,17 +324,10 @@ void DFPlugin::resetReferences() {
   control_ref_.vel = Vector3d::Zero();
   control_ref_.acc = Vector3d::Zero();
 
-  // convert eigen matrix into tf2 matrix
-
-  Eigen::Matrix3d R = uav_state_.rot;
-  tf2::Matrix3x3 tf_R;
-  tf_R.setValue(R(0, 0), R(0, 1), R(0, 2), R(1, 0), R(1, 1), R(1, 2), R(2, 0), R(2, 1), R(2, 2));
-
+  tf2::Matrix3x3 m_input(uav_state_.rot);
   double roll, pitch, yaw;
-  tf_R.getRPY(roll, pitch, yaw);
-  // Vector3d rot = uav_state_.rot.eulerAngles(0, 1, 2);
+  m_input.getRPY(roll, pitch, yaw);
 
-  // control_ref_.yaw = Vector3d(rot[2], 0.0f, 0.0f);
   control_ref_.yaw = Vector3d(yaw, 0.0f, 0.0f);
 
   hover_ref_ = control_ref_;

@@ -6,6 +6,7 @@
 #include <Eigen/Dense>
 #include <Eigen/src/Core/Matrix.h>
 #include <unordered_map>
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 
 namespace differential_flatness_controller
 {
@@ -15,7 +16,7 @@ namespace differential_flatness_controller
   {
     Vector3d pos;
     Vector3d vel;
-    Eigen::Matrix3d rot;
+    tf2::Quaternion rot;
   };
 
   struct Control_ref
