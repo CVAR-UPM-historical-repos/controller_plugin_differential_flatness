@@ -13,10 +13,10 @@
       position_Ki:
         x: 0.05
         y: 0.05
-        z: 0.05
+        z: 0.065
       position_Kd:
-        x: 3.0
-        y: 3.0
+        x: 2.5
+        y: 2.5
         z: 3.0
     speed_following:
       speed_Kp: 
