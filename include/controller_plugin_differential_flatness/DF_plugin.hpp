@@ -32,10 +32,10 @@ struct Control_flags {
   bool ref_received;
 };
 
-class DFPlugin : public controller_plugin_base::ControllerBase {
+class Plugin : public controller_plugin_base::ControllerBase {
   public:
-  DFPlugin(){};
-  ~DFPlugin(){};
+  Plugin(){};
+  ~Plugin(){};
 
   public:
   void ownInitialize() override;
