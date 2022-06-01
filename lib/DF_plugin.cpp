@@ -148,14 +148,9 @@ namespace controller_plugin_differential_flatness
     if (!flags_.ref_received)
     {
       RCLCPP_WARN(node_ptr_->get_logger(), "State changed, but ref not recived yet");
-      computeHOVER(pose, twist, thrust);
-      return;
-    }
-    else
-    {
-      computeActions(pose, twist, thrust);
     }
 
+    computeActions(pose, twist, thrust);
     static rclcpp::Time last_time_ = node_ptr_->now();
     return;
   };
@@ -243,8 +238,7 @@ namespace controller_plugin_differential_flatness
     switch (control_mode_in_.control_mode)
     {
     case as2_msgs::msg::ControlMode::HOVER:
-      computeHOVER(pose, twist, thrust);
-      return;
+      f_des_ = controller_handler_->computePositionControl(uav_state_, hover_ref_, dt, speed_limits_);
       break;
     case as2_msgs::msg::ControlMode::POSITION:
       f_des_ = controller_handler_->computePositionControl(uav_state_, control_ref_, dt, speed_limits_);
@@ -259,8 +253,7 @@ namespace controller_plugin_differential_flatness
           resetReferences();
           controller_handler_->resetError();
         }
-        computeHOVER(pose, twist, thrust);
-        return;
+        f_des_ = controller_handler_->computePositionControl(uav_state_, hover_ref_, dt, speed_limits_);
       }
       else
       {
@@ -314,47 +307,6 @@ namespace controller_plugin_differential_flatness
       break;
     }
 
-    return;
-  };
-
-  void Plugin::computeHOVER(geometry_msgs::msg::PoseStamped &pose,
-                            geometry_msgs::msg::TwistStamped &twist,
-                            as2_msgs::msg::Thrust &thrust)
-  {
-    rclcpp::Time current_time = node_ptr_->now();
-    double dt = (current_time - last_time_).nanoseconds() / 1.0e9;
-    last_time_ = current_time;
-
-    resetCommands();
-    f_des_ = controller_handler_->computeTrajectoryControl(uav_state_, hover_ref_, dt);
-
-    // RCLCPP_INFO(node_ptr_->get_logger(), "HOVERING IN SPEED");
-
-    switch (control_mode_in_.yaw_mode)
-    {
-    case as2_msgs::msg::ControlMode::YAW_ANGLE:
-      controller_handler_->computeYawAngleControl(
-          // Input
-          uav_state_, control_ref_.yaw[0], f_des_,
-          // Output
-          acro_, thrust_);
-      break;
-    case as2_msgs::msg::ControlMode::YAW_SPEED:
-    {
-      controller_handler_->computeYawSpeedControl(
-          // Input
-          uav_state_, control_ref_.yaw[1], f_des_, dt,
-          // Output
-          acro_, thrust_);
-      break;
-    }
-    default:
-      RCLCPP_ERROR_ONCE(node_ptr_->get_logger(), "Unknown yaw mode");
-      return;
-      break;
-    }
-
-    getOutput(pose, twist, thrust);
     return;
   };
 

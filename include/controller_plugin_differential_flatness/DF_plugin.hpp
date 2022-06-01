@@ -116,9 +116,6 @@ class Plugin : public controller_plugin_base::ControllerBase {
   void computeActions(geometry_msgs::msg::PoseStamped &pose,
                       geometry_msgs::msg::TwistStamped &twist, as2_msgs::msg::Thrust &thrust);
 
-  void computeHOVER(geometry_msgs::msg::PoseStamped &pose, geometry_msgs::msg::TwistStamped &twist,
-                    as2_msgs::msg::Thrust &thrust);
-
   void getOutput(geometry_msgs::msg::PoseStamped &pose_msg,
                  geometry_msgs::msg::TwistStamped &twist_msg, as2_msgs::msg::Thrust &thrust_msg);
 
