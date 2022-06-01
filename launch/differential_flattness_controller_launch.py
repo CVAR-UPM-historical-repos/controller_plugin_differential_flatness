@@ -11,7 +11,7 @@ def generate_launch_description():
     config = os.path.join(
         get_package_share_directory('differential_flatness_based_controller'),
         'config',
-        'pd_controller.yaml'
+        'default_controller.yaml'
         )
     node=Node(
             package="differential_flatness_based_controller",
