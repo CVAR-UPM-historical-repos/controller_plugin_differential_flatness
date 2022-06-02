@@ -85,13 +85,13 @@ namespace differential_flatness_controller
   };
 
   Vector3d DFController::computePositionControl(
-      const UAV_state &state_,
+      const UAV_state &state,
       const Control_ref &ref,
       const double &dt,
       const Vector3d &speed_limit)
   {
     // Compute the proportional contribution (position error)
-    Vector3d position_error = ref.pos - state_.pos;
+    Vector3d position_error = ref.pos - state.pos;
     Vector3d p_position_error_contribution = position_Kp_lin_mat_ * position_error;
 
     // Store the error for the next iteration
@@ -124,13 +124,15 @@ namespace differential_flatness_controller
 
     Control_ref desired_ref = ref;
     // Limit speed for each axis
-    if (speed_limit[0] != 0.0 && speed_limit[1] != 0.0 && speed_limit[2] != 0.0)
+    for (short j = 0; j < 3; j++)
     {
-      for (short j = 0; j < 3; j++)
+      if (speed_limit[j] == 0.0f)
       {
-        desired_speed[j] = (desired_speed[j] < -speed_limit[j]) ? -speed_limit[j] : desired_speed[j];
-        desired_speed[j] = (desired_speed[j] >  speed_limit[j]) ?  speed_limit[j] : desired_speed[j];
+        continue;
       }
+    
+      desired_speed[j] = (desired_speed[j] < -speed_limit[j]) ? -speed_limit[j] : desired_speed[j];
+      desired_speed[j] = (desired_speed[j] >  speed_limit[j]) ?  speed_limit[j] : desired_speed[j];
     }
     desired_ref.vel = desired_speed;
 
@@ -138,12 +140,12 @@ namespace differential_flatness_controller
   };
 
   Vector3d DFController::computeVelocityControl(
-      const UAV_state &state_,
+      const UAV_state &state,
       const Control_ref &ref,
       const double &dt)
   {
     // Compute the proportional contribution (velocity)
-    Vector3d velocity_error = ref.vel - state_.vel;
+    Vector3d velocity_error = ref.vel - state.vel;
     Vector3d p_velocity_error_contribution = velocity_Kp_lin_mat_ * velocity_error;
 
     // Store the error for the next iteration
