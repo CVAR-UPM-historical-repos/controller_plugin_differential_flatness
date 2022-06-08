@@ -124,19 +124,22 @@ namespace controller_plugin_differential_flatness
 
     if (!flags_.state_received)
     {
-      RCLCPP_WARN_ONCE(node_ptr_->get_logger(), "State not received yet");
+      auto &clk = *node_ptr_->get_clock();
+      RCLCPP_WARN_THROTTLE(node_ptr_->get_logger(), clk, 5000, "State not received yet");
       return;
     }
 
     if (!flags_.parameters_read)
     {
-      RCLCPP_WARN_ONCE(node_ptr_->get_logger(), "Parameters not read yet");
+      auto &clk = *node_ptr_->get_clock();
+      RCLCPP_WARN_THROTTLE(node_ptr_->get_logger(), clk, 5000, "Parameters not read yet");
       return;
     }
 
     if (!flags_.ref_received)
     {
-      RCLCPP_WARN(node_ptr_->get_logger(), "State changed, but ref not recived yet");
+      auto &clk = *node_ptr_->get_clock();
+      RCLCPP_WARN_THROTTLE(node_ptr_->get_logger(), clk, 5000, "State changed, but ref not recived yet");
       computeHOVER(pose, twist, thrust);
       return;
     }
@@ -152,7 +155,17 @@ namespace controller_plugin_differential_flatness
   bool DFPlugin::setMode(const as2_msgs::msg::ControlMode &in_mode,
                          const as2_msgs::msg::ControlMode &out_mode)
   {
-    control_mode_in_ = in_mode;
+    if (control_mode_in_.control_mode == as2_msgs::msg::ControlMode::HOVER)
+    {
+      control_mode_in_.control_mode = in_mode.control_mode;
+      control_mode_in_.yaw_mode = as2_msgs::msg::ControlMode::YAW_ANGLE;
+      control_mode_in_.reference_frame = as2_msgs::msg::ControlMode::LOCAL_ENU_FRAME;
+    }
+    else
+    {
+      control_mode_in_ = in_mode;
+    }
+
     control_mode_out_ = out_mode;
 
     flags_.ref_received = false;
