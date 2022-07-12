@@ -3,7 +3,7 @@
 namespace controller_plugin_differential_flatness
 {
 
-  void DFPlugin::ownInitialize()
+  void Plugin::ownInitialize()
   {
     flags_.parameters_read = false;
     flags_.state_received = false;
@@ -12,7 +12,7 @@ namespace controller_plugin_differential_flatness
     controller_handler_ = std::make_shared<DFController>();
 
     static auto parameters_callback_handle_ = node_ptr_->add_on_set_parameters_callback(
-      std::bind(&DFPlugin::parametersCallback, this, std::placeholders::_1));
+      std::bind(&Plugin::parametersCallback, this, std::placeholders::_1));
 
     declareParameters();
     
@@ -20,32 +20,33 @@ namespace controller_plugin_differential_flatness
     resetReferences();
     resetCommands();
   };
-
-  void DFPlugin::updateState(const nav_msgs::msg::Odometry &odom)
+  
+  void Plugin::updateState(const geometry_msgs::msg::PoseStamped &pose_msg,
+                           const geometry_msgs::msg::TwistStamped &twist_msg)
   {
     uav_state_.pos = Vector3d(
-        odom.pose.pose.position.x,
-        odom.pose.pose.position.y,
-        odom.pose.pose.position.z);
+        pose_msg.pose.position.x,
+        pose_msg.pose.position.y,
+        pose_msg.pose.position.z);
 
     uav_state_.vel = Vector3d(
-        odom.twist.twist.linear.x,
-        odom.twist.twist.linear.y,
-        odom.twist.twist.linear.z);
+        twist_msg.twist.linear.x,
+        twist_msg.twist.linear.y,
+        twist_msg.twist.linear.z);
 
-    Eigen::Quaterniond q(
-        odom.pose.pose.orientation.w,
-        odom.pose.pose.orientation.x,
-        odom.pose.pose.orientation.y,
-        odom.pose.pose.orientation.z);
+    Eigen::Quaterniond q_tf(
+        pose_msg.pose.orientation.w,
+        pose_msg.pose.orientation.x,
+        pose_msg.pose.orientation.y,
+        pose_msg.pose.orientation.z);
 
-    uav_state_.rot = q.toRotationMatrix();
+    uav_state_.rot = q_tf.toRotationMatrix();
 
     flags_.state_received = true;
     return;
   };
 
-  void DFPlugin::updateReference(const geometry_msgs::msg::PoseStamped &pose_msg)
+  void Plugin::updateReference(const geometry_msgs::msg::PoseStamped &pose_msg)
   {
     if (control_mode_in_.control_mode != as2_msgs::msg::ControlMode::SPEED ||
         control_mode_in_.yaw_mode != as2_msgs::msg::ControlMode::YAW_ANGLE)
@@ -65,7 +66,7 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  void DFPlugin::updateReference(const geometry_msgs::msg::TwistStamped &twist_msg)
+  void Plugin::updateReference(const geometry_msgs::msg::TwistStamped &twist_msg)
   {
     if (control_mode_in_.control_mode != as2_msgs::msg::ControlMode::SPEED)
     {
@@ -86,7 +87,7 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  void DFPlugin::updateReference(const trajectory_msgs::msg::JointTrajectoryPoint &traj_msg)
+  void Plugin::updateReference(const trajectory_msgs::msg::JointTrajectoryPoint &traj_msg)
   {
     if (control_mode_in_.control_mode != as2_msgs::msg::ControlMode::TRAJECTORY)
     {
@@ -117,7 +118,7 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  void DFPlugin::computeOutput(geometry_msgs::msg::PoseStamped &pose,
+  void Plugin::computeOutput(geometry_msgs::msg::PoseStamped &pose,
                                geometry_msgs::msg::TwistStamped &twist,
                                as2_msgs::msg::Thrust &thrust)
   {
@@ -152,7 +153,7 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  bool DFPlugin::setMode(const as2_msgs::msg::ControlMode &in_mode,
+  bool Plugin::setMode(const as2_msgs::msg::ControlMode &in_mode,
                          const as2_msgs::msg::ControlMode &out_mode)
   {
     if (control_mode_in_.control_mode == as2_msgs::msg::ControlMode::HOVER)
@@ -180,7 +181,7 @@ namespace controller_plugin_differential_flatness
     return true;
   };
 
-  rcl_interfaces::msg::SetParametersResult DFPlugin::parametersCallback(const std::vector<rclcpp::Parameter> &parameters)
+  rcl_interfaces::msg::SetParametersResult Plugin::parametersCallback(const std::vector<rclcpp::Parameter> &parameters)
   {
     rcl_interfaces::msg::SetParametersResult result;
     result.successful = true;
@@ -215,7 +216,7 @@ namespace controller_plugin_differential_flatness
     return result;
   };
 
-  void DFPlugin::declareParameters()
+  void Plugin::declareParameters()
   {
     std::vector<std::pair<std::string, double>> params = controller_handler_->getParametersList();
     for (auto &param : params)
@@ -226,7 +227,7 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  void DFPlugin::computeActions(geometry_msgs::msg::PoseStamped &pose,
+  void Plugin::computeActions(geometry_msgs::msg::PoseStamped &pose,
                                 geometry_msgs::msg::TwistStamped &twist,
                                 as2_msgs::msg::Thrust &thrust)
   {
@@ -304,7 +305,7 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  void DFPlugin::computeHOVER(geometry_msgs::msg::PoseStamped &pose,
+  void Plugin::computeHOVER(geometry_msgs::msg::PoseStamped &pose,
                               geometry_msgs::msg::TwistStamped &twist,
                               as2_msgs::msg::Thrust &thrust)
   {
@@ -331,7 +332,7 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  void DFPlugin::getOutput(geometry_msgs::msg::PoseStamped &pose_msg,
+  void Plugin::getOutput(geometry_msgs::msg::PoseStamped &pose_msg,
                            geometry_msgs::msg::TwistStamped &twist_msg,
                            as2_msgs::msg::Thrust &thrust_msg)
   {
@@ -348,7 +349,7 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  void DFPlugin::resetState()
+  void Plugin::resetState()
   {
     uav_state_.pos = Vector3d::Zero();
     uav_state_.vel = Vector3d::Zero();
@@ -356,7 +357,7 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  void DFPlugin::resetReferences()
+  void Plugin::resetReferences()
   {
     control_ref_.pos = uav_state_.pos;
     control_ref_.vel = Vector3d::Zero();
@@ -372,7 +373,7 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  void DFPlugin::resetCommands()
+  void Plugin::resetCommands()
   {
     f_des_.setZero();
     acro_.setZero();
@@ -383,5 +384,5 @@ namespace controller_plugin_differential_flatness
 } // namespace controller_plugin_differential_flatness
 
 #include <pluginlib/class_list_macros.hpp>
-PLUGINLIB_EXPORT_CLASS(controller_plugin_differential_flatness::DFPlugin,
+PLUGINLIB_EXPORT_CLASS(controller_plugin_differential_flatness::Plugin,
                        controller_plugin_base::ControllerBase)
