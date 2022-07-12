@@ -12,15 +12,15 @@ namespace controller_plugin_differential_flatness
     controller_handler_ = std::make_shared<DFController>();
 
     static auto parameters_callback_handle_ = node_ptr_->add_on_set_parameters_callback(
-      std::bind(&Plugin::parametersCallback, this, std::placeholders::_1));
+        std::bind(&Plugin::parametersCallback, this, std::placeholders::_1));
 
     declareParameters();
-    
+
     resetState();
     resetReferences();
     resetCommands();
   };
-  
+
   void Plugin::updateState(const geometry_msgs::msg::PoseStamped &pose_msg,
                            const geometry_msgs::msg::TwistStamped &twist_msg)
   {
@@ -34,13 +34,13 @@ namespace controller_plugin_differential_flatness
         twist_msg.twist.linear.y,
         twist_msg.twist.linear.z);
 
-    Eigen::Quaterniond q_tf(
-        pose_msg.pose.orientation.w,
+    tf2::Quaternion q(
         pose_msg.pose.orientation.x,
         pose_msg.pose.orientation.y,
-        pose_msg.pose.orientation.z);
+        pose_msg.pose.orientation.z,
+        pose_msg.pose.orientation.w);
 
-    uav_state_.rot = q_tf.toRotationMatrix();
+    uav_state_.rot = q;
 
     flags_.state_received = true;
     return;
@@ -48,26 +48,47 @@ namespace controller_plugin_differential_flatness
 
   void Plugin::updateReference(const geometry_msgs::msg::PoseStamped &pose_msg)
   {
-    if (control_mode_in_.control_mode != as2_msgs::msg::ControlMode::SPEED ||
-        control_mode_in_.yaw_mode != as2_msgs::msg::ControlMode::YAW_ANGLE)
+
+    if (control_mode_in_.control_mode == as2_msgs::msg::ControlMode::POSITION)
     {
-      return;
+      control_ref_.pos = Vector3d(
+          pose_msg.pose.position.x,
+          pose_msg.pose.position.y,
+          pose_msg.pose.position.z);
+
+      flags_.ref_received = true;
     }
 
-    Eigen::Quaterniond q(
-        pose_msg.pose.orientation.w,
-        pose_msg.pose.orientation.x,
-        pose_msg.pose.orientation.y,
-        pose_msg.pose.orientation.z);
+    if ((control_mode_in_.control_mode == as2_msgs::msg::ControlMode::SPEED ||
+         control_mode_in_.control_mode == as2_msgs::msg::ControlMode::POSITION) &&
+        control_mode_in_.yaw_mode == as2_msgs::msg::ControlMode::YAW_ANGLE)
+    {
+      tf2::Quaternion q(
+          pose_msg.pose.orientation.x,
+          pose_msg.pose.orientation.y,
+          pose_msg.pose.orientation.z,
+          pose_msg.pose.orientation.w);
 
-    control_ref_.yaw[0] = q.toRotationMatrix().eulerAngles(2, 0, 1)[0];
+      tf2::Matrix3x3 m(q);
+      double roll, pitch, yaw;
+      m.getRPY(roll, pitch, yaw);
 
-    flags_.ref_received = true;
+      control_ref_.yaw[0] = yaw;
+    }
     return;
   };
 
   void Plugin::updateReference(const geometry_msgs::msg::TwistStamped &twist_msg)
   {
+    if (control_mode_in_.control_mode == as2_msgs::msg::ControlMode::POSITION)
+    {
+      speed_limits_ = Vector3d(
+          twist_msg.twist.linear.x,
+          twist_msg.twist.linear.y,
+          twist_msg.twist.linear.z);
+      return;
+    }
+
     if (control_mode_in_.control_mode != as2_msgs::msg::ControlMode::SPEED)
     {
       return;
@@ -119,64 +140,51 @@ namespace controller_plugin_differential_flatness
   };
 
   void Plugin::computeOutput(geometry_msgs::msg::PoseStamped &pose,
-                               geometry_msgs::msg::TwistStamped &twist,
-                               as2_msgs::msg::Thrust &thrust)
+                             geometry_msgs::msg::TwistStamped &twist,
+                             as2_msgs::msg::Thrust &thrust)
   {
-
     if (!flags_.state_received)
     {
-      auto &clk = *node_ptr_->get_clock();
-      RCLCPP_WARN_THROTTLE(node_ptr_->get_logger(), clk, 5000, "State not received yet");
+      RCLCPP_WARN_ONCE(node_ptr_->get_logger(), "State not received yet");
       return;
     }
 
     if (!flags_.parameters_read)
     {
-      auto &clk = *node_ptr_->get_clock();
-      RCLCPP_WARN_THROTTLE(node_ptr_->get_logger(), clk, 5000, "Parameters not read yet");
+      RCLCPP_WARN_ONCE(node_ptr_->get_logger(), "Parameters not read yet");
       return;
     }
 
     if (!flags_.ref_received)
     {
-      auto &clk = *node_ptr_->get_clock();
-      RCLCPP_WARN_THROTTLE(node_ptr_->get_logger(), clk, 5000, "State changed, but ref not recived yet");
-      computeHOVER(pose, twist, thrust);
-      return;
-    }
-    else
-    {
-      computeActions(pose, twist, thrust);
+      RCLCPP_WARN(node_ptr_->get_logger(), "State changed, but ref not recived yet");
     }
 
+    computeActions(pose, twist, thrust);
     static rclcpp::Time last_time_ = node_ptr_->now();
     return;
   };
 
   bool Plugin::setMode(const as2_msgs::msg::ControlMode &in_mode,
-                         const as2_msgs::msg::ControlMode &out_mode)
+                       const as2_msgs::msg::ControlMode &out_mode)
   {
-    if (control_mode_in_.control_mode == as2_msgs::msg::ControlMode::HOVER)
-    {
-      control_mode_in_.control_mode = in_mode.control_mode;
-      control_mode_in_.yaw_mode = as2_msgs::msg::ControlMode::YAW_ANGLE;
-      control_mode_in_.reference_frame = as2_msgs::msg::ControlMode::LOCAL_ENU_FRAME;
-    }
-    else
-    {
-      control_mode_in_ = in_mode;
-    }
-
+    control_mode_in_ = in_mode;
+    static auto last_mode = control_mode_in_;
     control_mode_out_ = out_mode;
 
     flags_.ref_received = false;
     flags_.state_received = false;
+    in_hover_ = false;
 
-    controller_handler_->resetError();
+    if (control_mode_in_.control_mode != last_mode.control_mode)
+    {
+      controller_handler_->resetError();
+    }
+
     resetReferences();
-    // resetCommands(); TODO: Enable when ControllerBase change getOutput to bool
 
     last_time_ = node_ptr_->now();
+    last_mode = control_mode_in_;
 
     return true;
   };
@@ -195,10 +203,7 @@ namespace controller_plugin_differential_flatness
 
         // Remove the parameter from the list of parameters to be read
         parameters_to_read_.erase(
-            std::remove(
-                parameters_to_read_.begin(),
-                parameters_to_read_.end(),
-                param.get_name()),
+            std::remove(parameters_to_read_.begin(), parameters_to_read_.end(), param.get_name()),
             parameters_to_read_.end());
         if (parameters_to_read_.empty())
         {
@@ -208,7 +213,8 @@ namespace controller_plugin_differential_flatness
       }
       else
       {
-        RCLCPP_WARN(node_ptr_->get_logger(), "Parameter %s not defined in controller params", param.get_name().c_str());
+        RCLCPP_WARN(node_ptr_->get_logger(), "Parameter %s not defined in controller params",
+                    param.get_name().c_str());
         result.successful = false;
         result.reason = "parameter not found";
       }
@@ -222,14 +228,13 @@ namespace controller_plugin_differential_flatness
     for (auto &param : params)
     {
       node_ptr_->declare_parameter(param.first);
-      // node_ptr_->declare_parameter(param.first, param.second); // TODO: check
     }
     return;
   };
 
   void Plugin::computeActions(geometry_msgs::msg::PoseStamped &pose,
-                                geometry_msgs::msg::TwistStamped &twist,
-                                as2_msgs::msg::Thrust &thrust)
+                              geometry_msgs::msg::TwistStamped &twist,
+                              as2_msgs::msg::Thrust &thrust)
   {
     resetCommands();
 
@@ -240,20 +245,29 @@ namespace controller_plugin_differential_flatness
     switch (control_mode_in_.control_mode)
     {
     case as2_msgs::msg::ControlMode::HOVER:
-      computeHOVER(pose, twist, thrust);
-      return;
+      f_des_ = controller_handler_->computePositionControl(uav_state_, hover_ref_, dt, speed_limits_);
       break;
     case as2_msgs::msg::ControlMode::SPEED:
-      f_des_ = controller_handler_->computeVelocityControl(
-          uav_state_,
-          control_ref_,
-          dt);
+    {
+      if (control_ref_.vel.norm() < 1e-4)
+      {
+        if (!in_hover_)
+        {
+          in_hover_ = true;
+          resetReferences();
+          controller_handler_->resetError();
+        }
+        f_des_ = controller_handler_->computePositionControl(uav_state_, hover_ref_, dt, speed_limits_);
+      }
+      else
+      {
+        in_hover_ = false;
+        f_des_ = controller_handler_->computeVelocityControl(uav_state_, control_ref_, dt);
+      }
       break;
+    }
     case as2_msgs::msg::ControlMode::TRAJECTORY:
-      f_des_ = controller_handler_->computeTrajectoryControl(
-          uav_state_,
-          control_ref_,
-          dt);
+      f_des_ = controller_handler_->computeTrajectoryControl(uav_state_, control_ref_, dt);
       break;
     default:
       RCLCPP_ERROR_ONCE(node_ptr_->get_logger(), "Unknown control mode");
@@ -266,24 +280,19 @@ namespace controller_plugin_differential_flatness
     case as2_msgs::msg::ControlMode::YAW_ANGLE:
       controller_handler_->computeYawAngleControl(
           // Input
-          uav_state_,
-          control_ref_.yaw[0],
-          f_des_,
+          uav_state_, control_ref_.yaw[0], f_des_,
           // Output
-          acro_,
-          thrust_);
+          acro_, thrust_);
       break;
     case as2_msgs::msg::ControlMode::YAW_SPEED:
+    {
       controller_handler_->computeYawSpeedControl(
           // Input
-          uav_state_,
-          control_ref_.yaw[1],
-          f_des_,
-          dt,
+          uav_state_, control_ref_.yaw[1], f_des_, dt,
           // Output
-          acro_,
-          thrust_);
+          acro_, thrust_);
       break;
+    }
     default:
       RCLCPP_ERROR_ONCE(node_ptr_->get_logger(), "Unknown yaw mode");
       return;
@@ -305,36 +314,9 @@ namespace controller_plugin_differential_flatness
     return;
   };
 
-  void Plugin::computeHOVER(geometry_msgs::msg::PoseStamped &pose,
-                              geometry_msgs::msg::TwistStamped &twist,
-                              as2_msgs::msg::Thrust &thrust)
-  {
-    rclcpp::Time current_time = node_ptr_->now();
-    double dt = (current_time - last_time_).nanoseconds() / 1.0e9;
-    last_time_ = current_time;
-
-    resetCommands();
-    f_des_ = controller_handler_->computeTrajectoryControl(
-        uav_state_,
-        control_ref_,
-        dt);
-
-    controller_handler_->computeYawAngleControl(
-        // Input
-        uav_state_,
-        control_ref_.yaw[0],
-        f_des_,
-        // Output
-        acro_,
-        thrust_);
-
-    getOutput(pose, twist, thrust);
-    return;
-  };
-
   void Plugin::getOutput(geometry_msgs::msg::PoseStamped &pose_msg,
-                           geometry_msgs::msg::TwistStamped &twist_msg,
-                           as2_msgs::msg::Thrust &thrust_msg)
+                         geometry_msgs::msg::TwistStamped &twist_msg,
+                         as2_msgs::msg::Thrust &thrust_msg)
   {
     twist_msg.header.stamp = node_ptr_->now();
 
@@ -353,7 +335,7 @@ namespace controller_plugin_differential_flatness
   {
     uav_state_.pos = Vector3d::Zero();
     uav_state_.vel = Vector3d::Zero();
-    uav_state_.rot = Eigen::Matrix3d::Identity();
+    uav_state_.rot = tf2::Quaternion::getIdentity();
     return;
   };
 
@@ -363,12 +345,15 @@ namespace controller_plugin_differential_flatness
     control_ref_.vel = Vector3d::Zero();
     control_ref_.acc = Vector3d::Zero();
 
-    Vector3d rot = uav_state_.rot.eulerAngles(0, 1, 2);
+    speed_limits_ = Vector3d::Zero();
 
-    control_ref_.yaw = Vector3d(
-        rot[2],
-        0.0f,
-        0.0f);
+    tf2::Matrix3x3 m_input(uav_state_.rot);
+    double roll, pitch, yaw;
+    m_input.getRPY(roll, pitch, yaw);
+
+    control_ref_.yaw = Vector3d(yaw, 0.0f, 0.0f);
+
+    hover_ref_ = control_ref_;
 
     return;
   };

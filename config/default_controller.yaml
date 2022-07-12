@@ -2,8 +2,8 @@
 # /**/differential_flatness_controller: 
 /**:
   ros__parameters:
-    uav_mass: 1.5
-    antiwindup_cte : 1.0
+    uav_mass: 0.75
+    antiwindup_cte : 5.0
     alpha: 0.1
     trajectory_following:
       position_Kp:
@@ -11,29 +11,41 @@
         y: 6.0
         z: 6.0
       position_Ki:
-        x: 0.01
-        y: 0.01
-        z: 0.01
+        x: 0.05
+        y: 0.05
+        z: 0.065
       position_Kd:
-        x: 3.0
-        y: 3.0
+        x: 2.5
+        y: 2.5
         z: 3.0
     speed_following:
       speed_Kp: 
-        x: 3.0
-        y: 3.0
+        x: 2.8
+        y: 2.8
         z: 4.0
       speed_Kd: 
+        x: 0.008
+        y: 0.008
+        z: 0.0
+      speed_Ki:
+        x: 1.6
+        y: 1.6
+        z: 0.1
+    position_following:
+      position_Kp: 
+        x: 2.0
+        y: 2.0
+        z: 2.5
+      position_Kd: 
         x: 0.0
         y: 0.0
         z: 0.0
-      speed_Ki:
-        x: 0.0
-        y: 0.0
-        z: 0.01
+      position_Ki:
+        x: 0.01
+        y: 0.01
+        z: 0.11
     angular_speed_controller:
       angular_gain:
         x: 5.5
         y: 5.5
-        z: 5.0 
-
+        z: 2.0 

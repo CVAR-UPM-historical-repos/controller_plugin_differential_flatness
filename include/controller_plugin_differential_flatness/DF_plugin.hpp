@@ -72,6 +72,9 @@ namespace controller_plugin_differential_flatness
 
     UAV_state uav_state_;
     Control_ref control_ref_;
+    Control_ref hover_ref_;
+    bool in_hover_ = false;
+    Vector3d speed_limits_;
 
     Vector3d f_des_ = Vector3d::Zero();
     Vector3d acro_ = Vector3d::Zero();
@@ -81,6 +84,15 @@ namespace controller_plugin_differential_flatness
         "uav_mass",
         "antiwindup_cte",
         "alpha",
+        "position_following.position_Kp.x",
+        "position_following.position_Kp.y",
+        "position_following.position_Kp.z",
+        "position_following.position_Kd.x",
+        "position_following.position_Kd.y",
+        "position_following.position_Kd.z",
+        "position_following.position_Ki.x",
+        "position_following.position_Ki.y",
+        "position_following.position_Ki.z",
         "speed_following.speed_Kp.x",
         "speed_following.speed_Kp.y",
         "speed_following.speed_Kp.z",
