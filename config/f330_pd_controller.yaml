@@ -1,0 +1,38 @@
+#  TODO: FIX This all node behaviour -> check if it's a Foxy issue
+# /**/differential_flatness_controller: 
+/**:
+  ros__parameters:
+    uav_mass: 1.5
+    antiwindup_cte : 5.0
+    alpha: 0.1
+    trajectory_following:
+      position_Kp:
+        x: 5.5
+        y: 5.5
+        z: 7.0
+      position_Ki:
+        x: 0.01
+        y: 0.01
+        z: 0.01
+      position_Kd:
+        x: 3.0
+        y: 3.0
+        z: 3.0
+    speed_following:
+      speed_Kp: 
+        x: 1.0
+        y: 1.0
+        z: 3.0
+      speed_Kd: 
+        x: 0.0
+        y: 0.0
+        z: 0.0
+      speed_Ki:
+        x: 0.0
+        y: 0.0
+        z: 0.01
+    angular_speed_controller:
+      angular_gain:
+        x: 5.5
+        y: 5.5
+        z: 5.0 
