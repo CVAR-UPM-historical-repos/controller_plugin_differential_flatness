@@ -168,12 +168,22 @@ namespace controller_plugin_differential_flatness
   bool Plugin::setMode(const as2_msgs::msg::ControlMode &in_mode,
                        const as2_msgs::msg::ControlMode &out_mode)
   {
-    control_mode_in_ = in_mode;
+    if (in_mode.control_mode == as2_msgs::msg::ControlMode::HOVER)
+    {
+      control_mode_in_.control_mode = in_mode.control_mode;
+      control_mode_in_.yaw_mode = as2_msgs::msg::ControlMode::YAW_ANGLE;
+      control_mode_in_.reference_frame = as2_msgs::msg::ControlMode::LOCAL_ENU_FRAME;
+    }
+    else
+    {
+      flags_.ref_received = false;
+      flags_.state_received = false;
+      control_mode_in_ = in_mode;
+    }
+
     static auto last_mode = control_mode_in_;
     control_mode_out_ = out_mode;
 
-    flags_.ref_received = false;
-    flags_.state_received = false;
     in_hover_ = false;
 
     if (control_mode_in_.control_mode != last_mode.control_mode)
@@ -197,17 +207,33 @@ namespace controller_plugin_differential_flatness
 
     for (auto &param : parameters)
     {
-      if (controller_handler_->isParameter(param.get_name()))
+      if (find(parameters_to_read_.begin(), parameters_to_read_.end(), param.get_name()) != parameters_to_read_.end())
       {
-        controller_handler_->setParameter(param.get_name(), param.get_value<double>());
+        if (param.get_name() == "proportional_limitation")
+        {
+          proportional_limitation_ = param.get_value<bool>();
+        }
+        else if (controller_handler_->isParameter(param.get_name()))
+        {
+          controller_handler_->setParameter(param.get_name(), param.get_value<double>());
+        }
+        else
+        {
+          RCLCPP_WARN(node_ptr_->get_logger(), "Parameter %s not expected", param.get_name().c_str());
+          continue;
+        }
 
         // Remove the parameter from the list of parameters to be read
         parameters_to_read_.erase(
-            std::remove(parameters_to_read_.begin(), parameters_to_read_.end(), param.get_name()),
+            std::remove(
+                parameters_to_read_.begin(),
+                parameters_to_read_.end(),
+                param.get_name()),
             parameters_to_read_.end());
+
         if (parameters_to_read_.empty())
         {
-          RCLCPP_INFO(node_ptr_->get_logger(), "All parameters read");
+          RCLCPP_DEBUG(node_ptr_->get_logger(), "All parameters read");
           flags_.parameters_read = true;
         }
       }
@@ -245,7 +271,10 @@ namespace controller_plugin_differential_flatness
     switch (control_mode_in_.control_mode)
     {
     case as2_msgs::msg::ControlMode::HOVER:
-      f_des_ = controller_handler_->computePositionControl(uav_state_, hover_ref_, dt, speed_limits_);
+      f_des_ = controller_handler_->computePositionControl(uav_state_, control_ref_, dt, speed_limits_, proportional_limitation_);
+      break;
+    case as2_msgs::msg::ControlMode::POSITION:
+      f_des_ = controller_handler_->computePositionControl(uav_state_, control_ref_, dt, speed_limits_, proportional_limitation_);
       break;
     case as2_msgs::msg::ControlMode::SPEED:
     {
@@ -257,7 +286,7 @@ namespace controller_plugin_differential_flatness
           resetReferences();
           controller_handler_->resetError();
         }
-        f_des_ = controller_handler_->computePositionControl(uav_state_, hover_ref_, dt, speed_limits_);
+        f_des_ = controller_handler_->computePositionControl(uav_state_, hover_ref_, dt, speed_limits_, proportional_limitation_);
       }
       else
       {

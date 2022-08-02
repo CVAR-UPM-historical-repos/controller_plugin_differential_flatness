@@ -88,7 +88,8 @@ namespace differential_flatness_controller
       const UAV_state &state,
       const Control_ref &ref,
       const double &dt,
-      const Vector3d &speed_limit)
+      const Vector3d &speed_limit,
+      const bool &proportional_limitation)
   {
     // Compute the proportional contribution (position error)
     Vector3d position_error = ref.pos - state.pos;
@@ -123,17 +124,34 @@ namespace differential_flatness_controller
     Vector3d desired_speed = p_position_error_contribution + d_position_error_contribution + i_position_error_contribution;
 
     Control_ref desired_ref = ref;
-    // Limit speed for each axis
-    for (short j = 0; j < 3; j++)
+
+    if (proportional_limitation)
     {
-      if (speed_limit[j] == 0.0f)
+      for (short j = 0; j < 3; j++)
       {
-        continue;
+        if (speed_limit[j] == 0.0f || desired_speed[j] == 0.0f) {continue;};
+
+        if (desired_speed[j] > speed_limit[j] || desired_speed[j] < -speed_limit[j])
+        {
+            desired_speed *= std::abs(speed_limit[j] / desired_speed[j]);
+        }
       }
-    
-      desired_speed[j] = (desired_speed[j] < -speed_limit[j]) ? -speed_limit[j] : desired_speed[j];
-      desired_speed[j] = (desired_speed[j] >  speed_limit[j]) ?  speed_limit[j] : desired_speed[j];
     }
+    else
+    {
+      // Limit speed for each axis
+      for (short j = 0; j < 3; j++)
+      {
+        if (speed_limit[j] == 0.0f)
+        {
+          continue;
+        }
+      
+        desired_speed[j] = (desired_speed[j] < -speed_limit[j]) ? -speed_limit[j] : desired_speed[j];
+        desired_speed[j] = (desired_speed[j] >  speed_limit[j]) ?  speed_limit[j] : desired_speed[j];
+      }
+    }
+    
     desired_ref.vel = desired_speed;
 
     return computeVelocityControl(state_, desired_ref, dt);
@@ -239,7 +257,8 @@ namespace differential_flatness_controller
     tf2::Matrix3x3 rot_matrix_tf2(state.rot);
 
     Eigen::Matrix3d rot_matrix;
-    rot_matrix << rot_matrix_tf2[0][0], rot_matrix_tf2[0][1], rot_matrix_tf2[0][2],
+    rot_matrix << 
+        rot_matrix_tf2[0][0], rot_matrix_tf2[0][1], rot_matrix_tf2[0][2],
         rot_matrix_tf2[1][0], rot_matrix_tf2[1][1], rot_matrix_tf2[1][2],
         rot_matrix_tf2[2][0], rot_matrix_tf2[2][1], rot_matrix_tf2[2][2];
 
@@ -300,7 +319,7 @@ namespace differential_flatness_controller
 
   void DFController::updateGains_()
   {
-    mass_ = parameters_["uav_mass"];
+    mass_ = parameters_["mass"];
     antiwindup_cte_ = parameters_["antiwindup_cte"];
     alpha_ = parameters_["alpha"];
 

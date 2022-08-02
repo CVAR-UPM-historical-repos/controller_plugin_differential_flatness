@@ -49,7 +49,8 @@ namespace differential_flatness_controller
         const UAV_state &state_,
         const Control_ref &ref_,
         const double &dt,
-        const Vector3d &speed_limit);
+        const Vector3d &speed_limit,
+        const bool &proportional_limitation);
 
     Vector3d computeVelocityControl(
         const UAV_state &state_,
@@ -88,43 +89,43 @@ namespace differential_flatness_controller
     Eigen::Vector3d velocity_accum_error_ = Eigen::Vector3d::Zero();
     Eigen::Vector3d traj_position_accum_error_ = Eigen::Vector3d::Zero();
 
-    const float g = 9.81;
+    const float g = 9.81f;
     const Eigen::Vector3d gravitational_accel_ = Eigen::Vector3d(0, 0, g);
 
     std::unordered_map<std::string, double> parameters_ = {
-        {"uav_mass", 3.0},
-        {"antiwindup_cte", 1.0},
+        {"mass", 0.75},
+        {"antiwindup_cte", 5.0},
         {"alpha", 0.1},
-        {"position_following.position_Kp.x", 1.0},
-        {"position_following.position_Kp.y", 1.0},
-        {"position_following.position_Kp.z", 1.0},
+        {"position_following.position_Kp.x", 2.0},
+        {"position_following.position_Kp.y", 2.0},
+        {"position_following.position_Kp.z", 2.5},
         {"position_following.position_Kd.x", 0.0},
         {"position_following.position_Kd.y", 0.0},
         {"position_following.position_Kd.z", 0.0},
-        {"position_following.position_Ki.x", 0.0},
-        {"position_following.position_Ki.y", 0.0},
-        {"position_following.position_Ki.z", 0.0},
-        {"speed_following.speed_Kp.x", 3.0},
-        {"speed_following.speed_Kp.y", 3.0},
+        {"position_following.position_Ki.x", 0.01},
+        {"position_following.position_Ki.y", 0.01},
+        {"position_following.position_Ki.z", 0.11},
+        {"speed_following.speed_Kp.x", 2.8},
+        {"speed_following.speed_Kp.y", 2.8},
         {"speed_following.speed_Kp.z", 4.0},
-        {"speed_following.speed_Kd.x", 0.0},
-        {"speed_following.speed_Kd.y", 0.0},
+        {"speed_following.speed_Kd.x", 0.008},
+        {"speed_following.speed_Kd.y", 0.008},
         {"speed_following.speed_Kd.z", 0.0},
-        {"speed_following.speed_Ki.x", 0.0},
-        {"speed_following.speed_Ki.y", 0.0},
-        {"speed_following.speed_Ki.z", 0.01},
+        {"speed_following.speed_Ki.x", 1.6},
+        {"speed_following.speed_Ki.y", 1.6},
+        {"speed_following.speed_Ki.z", 0.1},
         {"trajectory_following.position_Kp.x", 6.0},
         {"trajectory_following.position_Kp.y", 6.0},
         {"trajectory_following.position_Kp.z", 6.0},
-        {"trajectory_following.position_Kd.x", 0.01},
-        {"trajectory_following.position_Kd.y", 0.01},
-        {"trajectory_following.position_Kd.z", 0.01},
-        {"trajectory_following.position_Ki.x", 3.0},
-        {"trajectory_following.position_Ki.y", 3.0},
-        {"trajectory_following.position_Ki.z", 3.0},
+        {"trajectory_following.position_Kd.x", 2.5},
+        {"trajectory_following.position_Kd.y", 2.5},
+        {"trajectory_following.position_Kd.z", 3.0},
+        {"trajectory_following.position_Ki.x", 0.05},
+        {"trajectory_following.position_Ki.y", 0.05},
+        {"trajectory_following.position_Ki.z", 0.065},
         {"angular_speed_controller.angular_gain.x", 5.5},
         {"angular_speed_controller.angular_gain.y", 5.5},
-        {"angular_speed_controller.angular_gain.z", 5.0},
+        {"angular_speed_controller.angular_gain.z", 2.0},
     };
 
     Eigen::Matrix3d position_Kp_lin_mat_ = Eigen::Matrix3d::Identity();

@@ -2,7 +2,8 @@
 # /**/differential_flatness_controller: 
 /**:
   ros__parameters:
-    uav_mass: 0.75
+    proportional_limitation : true
+    mass: 0.75
     antiwindup_cte : 5.0
     alpha: 0.1
     trajectory_following:

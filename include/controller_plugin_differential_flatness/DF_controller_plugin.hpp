@@ -80,8 +80,11 @@ namespace controller_plugin_differential_flatness
     Vector3d acro_ = Vector3d::Zero();
     float thrust_ = 0.0;
 
+    bool proportional_limitation_ = false;
+
     std::vector<std::string> parameters_to_read_ = {
-        "uav_mass",
+        "proportional_limitation",
+        "mass",
         "antiwindup_cte",
         "alpha",
         "position_following.position_Kp.x",
