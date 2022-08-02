@@ -151,7 +151,15 @@ namespace controller_plugin_differential_flatness
 
     if (!flags_.parameters_read)
     {
-      RCLCPP_WARN_ONCE(node_ptr_->get_logger(), "Parameters not read yet");
+      RCLCPP_WARN_ONCE(node_ptr_->get_logger(), "Parameters not read");
+
+      // parameters_to_read_
+      for (auto &param : parameters_to_read_)
+      {
+        RCLCPP_WARN_ONCE(node_ptr_->get_logger(), "Parameter %s not read", param.c_str());
+      }
+      RCLCPP_WARN_ONCE(node_ptr_->get_logger(), "\n");
+
       return;
     }
 
@@ -250,10 +258,11 @@ namespace controller_plugin_differential_flatness
 
   void Plugin::declareParameters()
   {
-    std::vector<std::pair<std::string, double>> params = controller_handler_->getParametersList();
-    for (auto &param : params)
+    std::vector<std::string> params_to_declare(parameters_to_read_);
+
+    for (int i=0; i<params_to_declare.size(); i++)
     {
-      node_ptr_->declare_parameter(param.first);
+      node_ptr_->declare_parameter(params_to_declare[i]);  // TODO: WARNING on galactic and advance
     }
     return;
   };
