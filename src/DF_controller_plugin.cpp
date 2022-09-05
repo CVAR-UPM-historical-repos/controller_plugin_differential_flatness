@@ -271,11 +271,18 @@ namespace controller_plugin_differential_flatness
                               geometry_msgs::msg::TwistStamped &twist,
                               as2_msgs::msg::Thrust &thrust)
   {
-    resetCommands();
-
     rclcpp::Time current_time = node_ptr_->now();
     double dt = (current_time - last_time_).nanoseconds() / 1.0e9;
     last_time_ = current_time;
+    if (dt == 0)
+    {
+      // Send last command reference
+      getOutput(pose, twist, thrust);
+      RCLCPP_WARN(node_ptr_->get_logger(), "Loop delta time is zero");
+      return;
+    }
+
+    resetCommands();
 
     switch (control_mode_in_.control_mode)
     {
