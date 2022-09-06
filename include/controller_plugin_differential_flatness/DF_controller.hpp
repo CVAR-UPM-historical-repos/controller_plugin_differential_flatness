@@ -43,7 +43,8 @@ namespace differential_flatness_controller
     bool getParameter(const std::string &param, double &value);
     bool isParameter(const std::string &param);
     bool setParametersList(const std::vector<std::pair<std::string, double>> &parameter_list);
-    std::vector<std::pair<std::string, double>> getParametersList();
+    bool getParametersList(std::vector<std::string> &param_list);
+    std::vector<std::pair<std::string, double>> getParametersMap();
 
     Vector3d computePositionControl(
         const UAV_state &state_,
@@ -126,6 +127,42 @@ namespace differential_flatness_controller
         {"angular_speed_controller.angular_gain.x", 5.5},
         {"angular_speed_controller.angular_gain.y", 5.5},
         {"angular_speed_controller.angular_gain.z", 2.0},
+    };
+
+    std::vector<std::string> parameters_list_ = {
+      "mass",
+      "antiwindup_cte",
+      "alpha",
+      "position_following.position_Kp.x",
+      "position_following.position_Kp.y",
+      "position_following.position_Kp.z",
+      "position_following.position_Kd.x",
+      "position_following.position_Kd.y",
+      "position_following.position_Kd.z",
+      "position_following.position_Ki.x",
+      "position_following.position_Ki.y",
+      "position_following.position_Ki.z",
+      "speed_following.speed_Kp.x",
+      "speed_following.speed_Kp.y",
+      "speed_following.speed_Kp.z",
+      "speed_following.speed_Kd.x",
+      "speed_following.speed_Kd.y",
+      "speed_following.speed_Kd.z",
+      "speed_following.speed_Ki.x",
+      "speed_following.speed_Ki.y",
+      "speed_following.speed_Ki.z",
+      "trajectory_following.position_Kp.x",
+      "trajectory_following.position_Kp.y",
+      "trajectory_following.position_Kp.z",
+      "trajectory_following.position_Kd.x",
+      "trajectory_following.position_Kd.y",
+      "trajectory_following.position_Kd.z",
+      "trajectory_following.position_Ki.x",
+      "trajectory_following.position_Ki.y",
+      "trajectory_following.position_Ki.z",
+      "angular_speed_controller.angular_gain.x",
+      "angular_speed_controller.angular_gain.y",
+      "angular_speed_controller.angular_gain.z",
     };
 
     Eigen::Matrix3d position_Kp_lin_mat_ = Eigen::Matrix3d::Identity();

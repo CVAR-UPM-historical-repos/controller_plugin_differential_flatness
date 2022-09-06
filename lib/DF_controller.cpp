@@ -51,7 +51,13 @@ namespace differential_flatness_controller
     return true;
   };
 
-  std::vector<std::pair<std::string, double>> DFController::getParametersList()
+  bool DFController::getParametersList(std::vector<std::string> &param_list)
+  {
+    param_list = parameters_list_;
+    return true;
+  };
+
+  std::vector<std::pair<std::string, double>> DFController::getParametersMap()
   {
     std::vector<std::pair<std::string, double>> list;
     for (auto &param : parameters_)
