@@ -1,4 +1,3 @@
-
 #include <benchmark/benchmark.h>
 
 #include <exception>
@@ -33,9 +32,9 @@ int main(int argc, char **argv)
   rclcpp::init(argc, argv);
   ptr = new PD_controller();
   if (
-      rcutils_logging_set_logger_level(ptr->get_logger().get_name(), RCUTILS_LOG_SEVERITY_WARN) ==
-      RCUTILS_RET_ERROR)
-    throw std::runtime_error("Error setting logger level");
+      rcutils_logging_set_logger_level(ptr->get_logger().get_name(),
+RCUTILS_LOG_SEVERITY_WARN) == RCUTILS_RET_ERROR) throw std::runtime_error("Error
+setting logger level");
 
   // benchmark::RegisterBenchmark("run Efficiciency", BM_COMPUTE_ACTIONS);
   benchmark::Initialize(&argc, argv);

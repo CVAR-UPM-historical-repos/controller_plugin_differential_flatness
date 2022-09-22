@@ -9,7 +9,7 @@ endif()
 
 # Default to C++14
 if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 17)
+  set(CMAKE_CXX_STANDARD 14)
 endif()
 
 # find dependencies
@@ -50,6 +50,16 @@ ament_target_dependencies(
   ${PROJECT_NAME}
   ${PROJECT_DEPENDENCIES}
 )
+
+if(BUILD_TESTING)
+
+  find_package(ament_cmake_cppcheck REQUIRED)
+  find_package(ament_cmake_clang_format REQUIRED)
+  
+  ament_cppcheck(src/ include/ tests/)
+  ament_clang_format(src/ include/ tests/ --config ${CMAKE_CURRENT_SOURCE_DIR}/.clang-format)
+
+endif()
 
 pluginlib_export_plugin_description_file(controller_plugin_base plugins.xml)
 
