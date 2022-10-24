@@ -43,7 +43,8 @@ void Plugin::ownInitialize() {
   flags_.state_received  = false;
   flags_.ref_received    = false;
 
-  std::shared_ptr<df_controller::DF> controller_handler_ = std::make_shared<df_controller::DF>();
+  std::shared_ptr<pid_controller::PIDController3D> pid_handler_ =
+      std::make_shared<pid_controller::PIDController3D>();
 
   tf_handler_ = std::make_shared<as2::tf::TfHandler>(node_ptr_);
 
@@ -58,6 +59,19 @@ bool Plugin::updateParams(const std::vector<std::string> &_params_list) {
   return result.successful;
 };
 
+void Plugin::checkParamList(const std::string &param,
+                            std::vector<std::string> &_params_list,
+                            bool &_all_params_read) {
+  if (find(_params_list.begin(), _params_list.end(), param) != _params_list.end()) {
+    // Remove the parameter from the list of parameters to be read
+    _params_list.erase(std::remove(_params_list.begin(), _params_list.end(), param),
+                       _params_list.end());
+  };
+  if (_params_list.size() == 0) {
+    _all_params_read = true;
+  }
+};
+
 rcl_interfaces::msg::SetParametersResult Plugin::parametersCallback(
     const std::vector<rclcpp::Parameter> &parameters) {
   rcl_interfaces::msg::SetParametersResult result;
@@ -69,20 +83,11 @@ rcl_interfaces::msg::SetParametersResult Plugin::parametersCallback(
 
     std::string controller    = param_name.substr(0, param_name.find("."));
     std::string param_subname = param_name.substr(param_name.find(".") + 1);
+
     if (controller == "trajectory_control") {
       updateDFParameter(param_subname, param);
-    }
-
-    if (!flags_.parameters_read && find(parameters_to_read_.begin(), parameters_to_read_.end(),
-                                        param.get_name()) != parameters_to_read_.end()) {
-      // Remove the parameter from the list of parameters to be read
-      parameters_to_read_.erase(
-          std::remove(parameters_to_read_.begin(), parameters_to_read_.end(), param.get_name()),
-          parameters_to_read_.end());
-
-      if (parameters_to_read_.size() == 0) {
-        RCLCPP_INFO(node_ptr_->get_logger(), "All parameters read");
-        flags_.parameters_read = true;
+      if (!flags_.parameters_read) {
+        checkParamList(param_name, parameters_to_read_, flags_.parameters_read);
       }
     }
   }
@@ -92,35 +97,35 @@ rcl_interfaces::msg::SetParametersResult Plugin::parametersCallback(
 void Plugin::updateDFParameter(const std::string &_parameter_name,
                                const rclcpp::Parameter &_param) {
   if (_parameter_name == "reset_integral") {
-    controller_handler_->setResetIntegralSaturationFlag(_param.get_value<bool>());
+    pid_handler_->setResetIntegralSaturationFlag(_param.get_value<bool>());
   } else if (_parameter_name == "antiwindup_cte") {
-    controller_handler_->setAntiWindup(_param.get_value<double>());
+    pid_handler_->setAntiWindup(_param.get_value<double>());
   } else if (_parameter_name == "alpha") {
-    controller_handler_->setAlpha(_param.get_value<double>());
+    pid_handler_->setAlpha(_param.get_value<double>());
   } else if (_parameter_name == "kp.x") {
-    controller_handler_->setGainKpX(_param.get_value<double>());
+    pid_handler_->setGainKpX(_param.get_value<double>());
   } else if (_parameter_name == "kp.y") {
-    controller_handler_->setGainKpY(_param.get_value<double>());
+    pid_handler_->setGainKpY(_param.get_value<double>());
   } else if (_parameter_name == "kp.z") {
-    controller_handler_->setGainKpZ(_param.get_value<double>());
+    pid_handler_->setGainKpZ(_param.get_value<double>());
   } else if (_parameter_name == "ki.x") {
-    controller_handler_->setGainKiX(_param.get_value<double>());
+    pid_handler_->setGainKiX(_param.get_value<double>());
   } else if (_parameter_name == "ki.y") {
-    controller_handler_->setGainKiY(_param.get_value<double>());
+    pid_handler_->setGainKiY(_param.get_value<double>());
   } else if (_parameter_name == "ki.z") {
-    controller_handler_->setGainKiZ(_param.get_value<double>());
+    pid_handler_->setGainKiZ(_param.get_value<double>());
   } else if (_parameter_name == "kd.x") {
-    controller_handler_->setGainKdX(_param.get_value<double>());
+    pid_handler_->setGainKdX(_param.get_value<double>());
   } else if (_parameter_name == "kd.y") {
-    controller_handler_->setGainKdY(_param.get_value<double>());
+    pid_handler_->setGainKdY(_param.get_value<double>());
   } else if (_parameter_name == "kd.z") {
-    controller_handler_->setGainKdZ(_param.get_value<double>());
+    pid_handler_->setGainKdZ(_param.get_value<double>());
   } else if (_parameter_name == "roll_control.kp") {
-    controller_handler_->setGainKpRollAngular(_param.get_value<double>());
+    Kp_ang_mat_(0, 0) = _param.get_value<double>();
   } else if (_parameter_name == "pitch_control.kp") {
-    controller_handler_->setGainKpPitchAngular(_param.get_value<double>());
+    Kp_ang_mat_(1, 1) = _param.get_value<double>();
   } else if (_parameter_name == "yaw_control.kp") {
-    controller_handler_->setGainKpYawAngular(_param.get_value<double>());
+    Kp_ang_mat_(2, 2) = _param.get_value<double>();
   }
   return;
 }
@@ -129,7 +134,7 @@ void Plugin::reset() {
   resetState();
   resetReferences();
   resetCommands();
-  controller_handler_->resetController();
+  pid_handler_->resetController();
   last_time_ = node_ptr_->now();
 }
 
@@ -139,14 +144,9 @@ void Plugin::resetState() {
 }
 
 void Plugin::resetReferences() {
-  control_ref_.position_header = uav_state_.position_header;
-  control_ref_.position        = uav_state_.position;
-
-  control_ref_.velocity_header = uav_state_.velocity_header;
-  control_ref_.velocity        = Eigen::Vector3d::Zero();
-
-  control_ref_.acceleration_header = uav_state_.velocity_header;
-  control_ref_.acceleration        = Eigen::Vector3d::Zero();
+  control_ref_.position     = uav_state_.position;
+  control_ref_.velocity     = Eigen::Vector3d::Zero();
+  control_ref_.acceleration = Eigen::Vector3d::Zero();
 
   control_ref_.yaw =
       Eigen::Vector3d(as2::frame::getYawFromQuaternion(uav_state_.attitude_state), 0, 0);
@@ -192,7 +192,6 @@ void Plugin::updateReference(const trajectory_msgs::msg::JointTrajectoryPoint &t
 
   control_ref_.acceleration = Eigen::Vector3d(traj_msg.accelerations[0], traj_msg.accelerations[1],
                                               traj_msg.accelerations[2]);
-
   control_ref_.yaw =
       Eigen::Vector3d(traj_msg.positions[3], traj_msg.velocities[3], traj_msg.accelerations[3]);
 
@@ -238,91 +237,122 @@ void Plugin::computeOutput(geometry_msgs::msg::PoseStamped &pose,
     RCLCPP_WARN_THROTTLE(node_ptr_->get_logger(), clk, 5000,
                          "State changed, but ref not recived yet");
     return;
-  } else {
-    computeActions(pose, twist, thrust);
   }
 
-  static rclcpp::Time last_time_ = node_ptr_->now();
-  return;
-};
-
-void Plugin::computeActions(geometry_msgs::msg::PoseStamped &pose,
-                            geometry_msgs::msg::TwistStamped &twist,
-                            as2_msgs::msg::Thrust &thrust) {
   rclcpp::Time current_time = node_ptr_->now();
   double dt                 = (current_time - last_time_).nanoseconds() / 1.0e9;
   last_time_                = current_time;
 
   if (dt == 0) {
-    // Send last command reference
-    RCLCPP_WARN_ONCE(node_ptr_->get_logger(), "Loop delta time is zero");
-  } else {
-    resetCommands();
-
-    switch (control_mode_in_.yaw_mode) {
-      case as2_msgs::msg::ControlMode::YAW_ANGLE: {
-        break;
-      }
-      case as2_msgs::msg::ControlMode::YAW_SPEED: {
-        tf2::Matrix3x3 m(uav_state_.attitude_state);
-        double roll, pitch, yaw;
-        m.getRPY(roll, pitch, yaw);
-        control_ref_.yaw.x() = yaw + control_ref_.yaw.y() * dt;
-        break;
-      }
-      default:
-        auto &clk = *node_ptr_->get_clock();
-        RCLCPP_ERROR_THROTTLE(node_ptr_->get_logger(), clk, 5000, "Unknown yaw mode");
-        return;
-        break;
-    }
-
-    switch (control_mode_in_.control_mode) {
-      case as2_msgs::msg::ControlMode::HOVER: {
-        // TODO: Implement
-        // control_command_.velocity = pid_3D_position_handler_->computeControl(
-        //     dt, uav_state_.position, control_ref_.position);
-        break;
-      }
-      case as2_msgs::msg::ControlMode::POSITION: {
-        // TODO: Implement
-        // control_command_.velocity = pid_3D_position_handler_->computeControl(
-        //     dt, uav_state_.position, control_ref_.position);
-        break;
-      }
-      case as2_msgs::msg::ControlMode::SPEED: {
-        // TODO: Implement
-        // control_command_.velocity = pid_3D_velocity_handler_->computeControl(
-        //     dt, uav_state_.velocity, control_ref_.velocity);
-        break;
-      }
-      case as2_msgs::msg::ControlMode::TRAJECTORY: {
-        // TODO: Change twist to odom frame
-        control_command_ = controller_handler_->computeTrajectoryControl(
-            dt, uav_state_.position, uav_state_.velocity, uav_state_.attitude_state,
-            control_ref_.position, control_ref_.velocity, control_ref_.acceleration,
-            control_ref_.yaw.x());
-        break;
-      }
-      default:
-        auto &clk = *node_ptr_->get_clock();
-        RCLCPP_ERROR_THROTTLE(node_ptr_->get_logger(), clk, 5000, "Unknown control mode");
-        return;
-        break;
-    }
-
-    switch (control_mode_in_.reference_frame) {
-      case as2_msgs::msg::ControlMode::LOCAL_ENU_FRAME:
-        getOutput(twist, thrust);
-        break;
-
-      default:
-        RCLCPP_ERROR_ONCE(node_ptr_->get_logger(), "Unknown reference frame");
-        return;
-        break;
-    }
+    auto &clk = *node_ptr_->get_clock();
+    RCLCPP_WARN_THROTTLE(node_ptr_->get_logger(), clk, 1000,
+                         "Loop delta time is zero. Check your clock");
+    return;
   }
+
+  resetCommands();
+
+  switch (control_mode_in_.yaw_mode) {
+    case as2_msgs::msg::ControlMode::YAW_ANGLE: {
+      break;
+    }
+    case as2_msgs::msg::ControlMode::YAW_SPEED: {
+      tf2::Matrix3x3 m(uav_state_.attitude_state);
+      double roll, pitch, yaw;
+      m.getRPY(roll, pitch, yaw);
+      control_ref_.yaw.x() = yaw + control_ref_.yaw.y() * dt;
+      break;
+    }
+    default:
+      auto &clk = *node_ptr_->get_clock();
+      RCLCPP_ERROR_THROTTLE(node_ptr_->get_logger(), clk, 5000, "Unknown yaw mode");
+      return;
+      break;
+  }
+
+  switch (control_mode_in_.control_mode) {
+    case as2_msgs::msg::ControlMode::TRAJECTORY: {
+      // TODO: Change twist to odom frame
+      control_command_ = computeTrajectoryControl(dt, uav_state_.position, uav_state_.velocity,
+                                                  uav_state_.attitude_state, control_ref_.position,
+                                                  control_ref_.velocity, control_ref_.acceleration,
+                                                  control_ref_.yaw.x());
+      break;
+    }
+    default:
+      auto &clk = *node_ptr_->get_clock();
+      RCLCPP_ERROR_THROTTLE(node_ptr_->get_logger(), clk, 5000, "Unknown control mode");
+      return;
+      break;
+  }
+
+  getOutput(twist, thrust);
   return;
+}
+
+Eigen::Vector3d Plugin::getForce(const double &_dt,
+                                 const Eigen::Vector3d &_pos_state,
+                                 const Eigen::Vector3d &_vel_state,
+                                 const Eigen::Vector3d &_pos_reference,
+                                 const Eigen::Vector3d &_vel_reference,
+                                 const Eigen::Vector3d &_acc_reference) {
+  // Compute the error force contribution
+  Eigen::Vector3d force_error =
+      pid_handler_->computeControl(_dt, _pos_state, _pos_reference, _vel_state, _vel_reference);
+
+  // Compute acceleration reference contribution
+  Eigen::Vector3d force_acceleration = mass_ * _acc_reference;
+
+  // Compute gravity compensation
+  Eigen::Vector3d force_gravity = mass_ * gravitational_accel_;
+
+  // Return desired force with the gravity compensation
+  Eigen::Vector3d desired_force = force_error + force_acceleration + force_gravity;
+  return desired_force;
+}
+
+Acro_command Plugin::computeTrajectoryControl(const double &_dt,
+                                              const Eigen::Vector3d &_pos_state,
+                                              const Eigen::Vector3d &_vel_state,
+                                              const tf2::Quaternion &_attitude_state,
+                                              const Eigen::Vector3d &_pos_reference,
+                                              const Eigen::Vector3d &_vel_reference,
+                                              const Eigen::Vector3d &_acc_reference,
+                                              const double &_yaw_angle_reference) {
+  Eigen::Vector3d desired_force =
+      getForce(_dt, _pos_state, _vel_state, _pos_reference, _vel_reference, _acc_reference);
+
+  // Compute the desired attitude
+  tf2::Matrix3x3 rot_matrix_tf2(_attitude_state);
+
+  Eigen::Matrix3d rot_matrix;
+  rot_matrix << rot_matrix_tf2[0][0], rot_matrix_tf2[0][1], rot_matrix_tf2[0][2],
+      rot_matrix_tf2[1][0], rot_matrix_tf2[1][1], rot_matrix_tf2[1][2], rot_matrix_tf2[2][0],
+      rot_matrix_tf2[2][1], rot_matrix_tf2[2][2];
+
+  Eigen::Vector3d xc_des(cos(_yaw_angle_reference), sin(_yaw_angle_reference), 0);
+
+  Eigen::Vector3d zb_des = desired_force.normalized();
+  Eigen::Vector3d yb_des = zb_des.cross(xc_des).normalized();
+  Eigen::Vector3d xb_des = yb_des.cross(zb_des).normalized();
+
+  // Compute the rotation matrix desidered
+  Eigen::Matrix3d R_des;
+  R_des.col(0) = xb_des;
+  R_des.col(1) = yb_des;
+  R_des.col(2) = zb_des;
+
+  // Compute the rotation matrix error
+  Eigen::Matrix3d Mat_e_rot = (R_des.transpose() * rot_matrix - rot_matrix.transpose() * R_des);
+
+  Eigen::Vector3d V_e_rot(Mat_e_rot(2, 1), Mat_e_rot(0, 2), Mat_e_rot(1, 0));
+  Eigen::Vector3d E_rot = (1.0f / 2.0f) * V_e_rot;
+
+  Acro_command acro_command;
+  acro_command.thrust = (float)desired_force.dot(rot_matrix.col(2).normalized());
+  acro_command.PQR    = -Kp_ang_mat_ * E_rot;
+
+  return acro_command;
 }
 
 void Plugin::getOutput(geometry_msgs::msg::TwistStamped &twist_msg,

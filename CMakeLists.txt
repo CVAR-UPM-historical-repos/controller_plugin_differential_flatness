@@ -27,7 +27,7 @@ set(PROJECT_DEPENDENCIES
   Eigen3
   pluginlib
   controller_plugin_base
-  differential_flatness_based_controller
+  pid_controller
 )
 
 foreach(DEPENDENCY ${PROJECT_DEPENDENCIES})
