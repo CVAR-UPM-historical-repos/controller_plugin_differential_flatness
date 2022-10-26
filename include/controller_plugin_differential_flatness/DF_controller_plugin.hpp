@@ -27,10 +27,10 @@ struct UAV_state {
 };
 
 struct UAV_reference {
-  Eigen::Vector3d position                  = Eigen::Vector3d::Zero();
-  Eigen::Vector3d velocity                  = Eigen::Vector3d::Zero();
-  Eigen::Vector3d acceleration              = Eigen::Vector3d::Zero();
-  Eigen::Vector3d yaw                       = Eigen::Vector3d::Zero();
+  Eigen::Vector3d position     = Eigen::Vector3d::Zero();
+  Eigen::Vector3d velocity     = Eigen::Vector3d::Zero();
+  Eigen::Vector3d acceleration = Eigen::Vector3d::Zero();
+  Eigen::Vector3d yaw          = Eigen::Vector3d::Zero();
 };
 
 struct Acro_command {
@@ -54,14 +54,15 @@ public:
   void updateState(const geometry_msgs::msg::PoseStamped &pose_msg,
                    const geometry_msgs::msg::TwistStamped &twist_msg) override;
 
-  void updateReference(const geometry_msgs::msg::PoseStamped &ref) override;
-  void updateReference(const geometry_msgs::msg::TwistStamped &ref) override;
+  // void updateReference(const geometry_msgs::msg::PoseStamped &ref) override;
+  // void updateReference(const geometry_msgs::msg::TwistStamped &ref) override;reset
   void updateReference(const trajectory_msgs::msg::JointTrajectoryPoint &ref) override;
 
   bool setMode(const as2_msgs::msg::ControlMode &mode_in,
                const as2_msgs::msg::ControlMode &mode_out) override;
 
-  void computeOutput(geometry_msgs::msg::PoseStamped &pose,
+  bool computeOutput(const double &dt,
+                     geometry_msgs::msg::PoseStamped &pose,
                      geometry_msgs::msg::TwistStamped &twist,
                      as2_msgs::msg::Thrust &thrust) override;
 
@@ -82,6 +83,7 @@ private:
   std::shared_ptr<as2::tf::TfHandler> tf_handler_;
 
   std::vector<std::string> parameters_list_ = {
+      "mass",
       "trajectory_control.reset_integral",
       "trajectory_control.antiwindup_cte",
       "trajectory_control.alpha",
@@ -124,7 +126,7 @@ private:
                       geometry_msgs::msg::TwistStamped &twist,
                       as2_msgs::msg::Thrust &thrust);
 
-  void getOutput(geometry_msgs::msg::TwistStamped &twist_msg, as2_msgs::msg::Thrust &thrust_msg);
+  bool getOutput(geometry_msgs::msg::TwistStamped &twist_msg, as2_msgs::msg::Thrust &thrust_msg);
 
 private:
   std::shared_ptr<pid_controller::PIDController3D> pid_handler_;

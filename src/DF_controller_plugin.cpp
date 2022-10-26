@@ -43,8 +43,7 @@ void Plugin::ownInitialize() {
   flags_.state_received  = false;
   flags_.ref_received    = false;
 
-  std::shared_ptr<pid_controller::PIDController3D> pid_handler_ =
-      std::make_shared<pid_controller::PIDController3D>();
+  pid_handler_ = std::make_shared<pid_controller::PIDController3D>();
 
   tf_handler_ = std::make_shared<as2::tf::TfHandler>(node_ptr_);
 
@@ -81,13 +80,20 @@ rcl_interfaces::msg::SetParametersResult Plugin::parametersCallback(
   for (auto &param : parameters) {
     std::string param_name = param.get_name();
 
-    std::string controller    = param_name.substr(0, param_name.find("."));
-    std::string param_subname = param_name.substr(param_name.find(".") + 1);
-
-    if (controller == "trajectory_control") {
-      updateDFParameter(param_subname, param);
+    if (param_name == "mass") {
+      mass_ = param.get_value<double>();
       if (!flags_.parameters_read) {
         checkParamList(param_name, parameters_to_read_, flags_.parameters_read);
+      }
+    } else {
+      std::string controller    = param_name.substr(0, param_name.find("."));
+      std::string param_subname = param_name.substr(param_name.find(".") + 1);
+
+      if (controller == "trajectory_control") {
+        updateDFParameter(param_subname, param);
+        if (!flags_.parameters_read) {
+          checkParamList(param_name, parameters_to_read_, flags_.parameters_read);
+        }
       }
     }
   }
@@ -135,7 +141,6 @@ void Plugin::reset() {
   resetReferences();
   resetCommands();
   pid_handler_->resetController();
-  last_time_ = node_ptr_->now();
 }
 
 void Plugin::resetState() {
@@ -217,38 +222,33 @@ bool Plugin::setMode(const as2_msgs::msg::ControlMode &in_mode,
   return true;
 };
 
-void Plugin::computeOutput(geometry_msgs::msg::PoseStamped &pose,
+bool Plugin::computeOutput(const double &dt,
+                           geometry_msgs::msg::PoseStamped &pose,
                            geometry_msgs::msg::TwistStamped &twist,
                            as2_msgs::msg::Thrust &thrust) {
   if (!flags_.state_received) {
     auto &clk = *node_ptr_->get_clock();
     RCLCPP_WARN_THROTTLE(node_ptr_->get_logger(), clk, 5000, "State not received yet");
-    return;
+    return false;
   }
 
   if (!flags_.parameters_read) {
     auto &clk = *node_ptr_->get_clock();
     RCLCPP_WARN_THROTTLE(node_ptr_->get_logger(), clk, 5000, "Parameters not read yet");
-    return;
+    for (auto &param : parameters_to_read_) {
+      RCLCPP_WARN(node_ptr_->get_logger(), "Parameter %s not read yet", param.c_str());
+    }
+    return false;
   }
 
   if (!flags_.ref_received) {
     auto &clk = *node_ptr_->get_clock();
     RCLCPP_WARN_THROTTLE(node_ptr_->get_logger(), clk, 5000,
                          "State changed, but ref not recived yet");
-    return;
+    return false;
   }
 
-  rclcpp::Time current_time = node_ptr_->now();
-  double dt                 = (current_time - last_time_).nanoseconds() / 1.0e9;
-  last_time_                = current_time;
-
-  if (dt == 0) {
-    auto &clk = *node_ptr_->get_clock();
-    RCLCPP_WARN_THROTTLE(node_ptr_->get_logger(), clk, 1000,
-                         "Loop delta time is zero. Check your clock");
-    return;
-  }
+  RCLCPP_INFO(node_ptr_->get_logger(), "dt: %f", dt);
 
   resetCommands();
 
@@ -266,7 +266,7 @@ void Plugin::computeOutput(geometry_msgs::msg::PoseStamped &pose,
     default:
       auto &clk = *node_ptr_->get_clock();
       RCLCPP_ERROR_THROTTLE(node_ptr_->get_logger(), clk, 5000, "Unknown yaw mode");
-      return;
+      return false;
       break;
   }
 
@@ -282,12 +282,11 @@ void Plugin::computeOutput(geometry_msgs::msg::PoseStamped &pose,
     default:
       auto &clk = *node_ptr_->get_clock();
       RCLCPP_ERROR_THROTTLE(node_ptr_->get_logger(), clk, 5000, "Unknown control mode");
-      return;
+      return false;
       break;
   }
 
-  getOutput(twist, thrust);
-  return;
+  return getOutput(twist, thrust);
 }
 
 Eigen::Vector3d Plugin::getForce(const double &_dt,
@@ -297,8 +296,10 @@ Eigen::Vector3d Plugin::getForce(const double &_dt,
                                  const Eigen::Vector3d &_vel_reference,
                                  const Eigen::Vector3d &_acc_reference) {
   // Compute the error force contribution
+  // Eigen::Vector3d force_error =
+  //     pid_handler_->computeControl(_dt, _pos_state, _pos_reference, _vel_state, _vel_reference);
   Eigen::Vector3d force_error =
-      pid_handler_->computeControl(_dt, _pos_state, _pos_reference, _vel_state, _vel_reference);
+      pid_handler_->computeControl(_pos_state, _pos_reference, _vel_state, _vel_reference);
 
   // Compute acceleration reference contribution
   Eigen::Vector3d force_acceleration = mass_ * _acc_reference;
@@ -355,7 +356,7 @@ Acro_command Plugin::computeTrajectoryControl(const double &_dt,
   return acro_command;
 }
 
-void Plugin::getOutput(geometry_msgs::msg::TwistStamped &twist_msg,
+bool Plugin::getOutput(geometry_msgs::msg::TwistStamped &twist_msg,
                        as2_msgs::msg::Thrust &thrust_msg) {
   twist_msg.header.stamp    = node_ptr_->now();
   twist_msg.header.frame_id = flu_frame_id_;
@@ -366,7 +367,7 @@ void Plugin::getOutput(geometry_msgs::msg::TwistStamped &twist_msg,
   thrust_msg.header.stamp    = node_ptr_->now();
   thrust_msg.header.frame_id = flu_frame_id_;
   thrust_msg.thrust          = control_command_.thrust;
-  return;
+  return true;
 };
 
 }  // namespace controller_plugin_differential_flatness
