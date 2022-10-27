@@ -132,7 +132,7 @@ private:
   std::shared_ptr<pid_controller::PIDController3D> pid_handler_;
 
   double mass_;
-  Eigen::Vector3d gravitational_accel_ = Eigen::Vector3d(0, 0, 9.81);
+  Eigen::Vector3d gravitational_accel_ = Eigen::Vector3d(0, 0, -9.81);
   Eigen::Matrix3d Kp_ang_mat_          = Eigen::Matrix3d::Zero();
 
 private:

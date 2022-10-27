@@ -35,6 +35,7 @@
  ********************************************************************************/
 
 #include "DF_controller_plugin.hpp"
+#include <as2_core/utils/tf_utils.hpp>
 
 namespace controller_plugin_differential_flatness {
 
@@ -170,9 +171,21 @@ void Plugin::updateState(const geometry_msgs::msg::PoseStamped &pose_msg,
   uav_state_.position =
       Eigen::Vector3d(pose_msg.pose.position.x, pose_msg.pose.position.y, pose_msg.pose.position.z);
 
-  geometry_msgs::msg::TwistStamped twist_msg_flu = twist_msg;
+  /* RCLCPP_INFO(node_ptr_->get_logger(), "Headers: [pose %s] [twist %s]",
+              pose_msg.header.frame_id.c_str(), twist_msg.header.frame_id.c_str()); */
+
+  // geometry_msgs::msg::TwistStamped twist_msg_flu = twist_msg;
   geometry_msgs::msg::TwistStamped twist_msg_enu;
-  twist_msg_enu       = tf_handler_->convert(twist_msg_flu, enu_frame_id_);
+
+  if (twist_msg.header.frame_id !=
+      as2::tf::generateTfName(node_ptr_->get_namespace(), enu_frame_id_)) {
+    RCLCPP_INFO(node_ptr_->get_logger(), "Transforming twist from %s to %s",
+                twist_msg.header.frame_id.c_str(), enu_frame_id_.c_str());
+    twist_msg_enu = tf_handler_->convert(twist_msg, enu_frame_id_);
+  } else {
+    twist_msg_enu = twist_msg;
+  }
+
   uav_state_.velocity = Eigen::Vector3d(twist_msg_enu.twist.linear.x, twist_msg_enu.twist.linear.y,
                                         twist_msg_enu.twist.linear.z);
 
@@ -248,7 +261,7 @@ bool Plugin::computeOutput(const double &dt,
     return false;
   }
 
-  RCLCPP_INFO(node_ptr_->get_logger(), "dt: %f", dt);
+  // RCLCPP_INFO(node_ptr_->get_logger(), "dt: %f", dt);
 
   resetCommands();
 
@@ -257,6 +270,7 @@ bool Plugin::computeOutput(const double &dt,
       break;
     }
     case as2_msgs::msg::ControlMode::YAW_SPEED: {
+      RCLCPP_WARN(node_ptr_->get_logger(), "Yaw speed adding SPEED VEL");
       tf2::Matrix3x3 m(uav_state_.attitude_state);
       double roll, pitch, yaw;
       m.getRPY(roll, pitch, yaw);
@@ -272,7 +286,7 @@ bool Plugin::computeOutput(const double &dt,
 
   switch (control_mode_in_.control_mode) {
     case as2_msgs::msg::ControlMode::TRAJECTORY: {
-      // TODO: Change twist to odom frame
+      RCLCPP_INFO(node_ptr_->get_logger(), "TRAJECTORY, yaw angle %f", control_ref_.yaw.x());
       control_command_ = computeTrajectoryControl(dt, uav_state_.position, uav_state_.velocity,
                                                   uav_state_.attitude_state, control_ref_.position,
                                                   control_ref_.velocity, control_ref_.acceleration,
@@ -298,17 +312,53 @@ Eigen::Vector3d Plugin::getForce(const double &_dt,
   // Compute the error force contribution
   // Eigen::Vector3d force_error =
   //     pid_handler_->computeControl(_dt, _pos_state, _pos_reference, _vel_state, _vel_reference);
-  Eigen::Vector3d force_error =
-      pid_handler_->computeControl(_pos_state, _pos_reference, _vel_state, _vel_reference);
 
-  // Compute acceleration reference contribution
-  Eigen::Vector3d force_acceleration = mass_ * _acc_reference;
+  /* "trajectory_control.kp.x",
+  "trajectory_control.kp.y",
+  "trajectory_control.kp.z",
+  "trajectory_control.ki.x",
+  "trajectory_control.ki.y",
+  "trajectory_control.ki.z",
+  "trajectory_control.kd.x",
+  "trajectory_control.kd.y",
+  "trajectory_control.kd.z",
+  "trajectory_control.roll_control.kp",
+  "trajectory_control.pitch_control.kp",
+  "trajectory_control.yaw_control.kp", */
 
-  // Compute gravity compensation
-  Eigen::Vector3d force_gravity = mass_ * gravitational_accel_;
+  Eigen::Vector3d position_error = _pos_reference - _pos_state;
+  Eigen::Vector3d velocity_error = _vel_reference - _vel_state;
 
-  // Return desired force with the gravity compensation
-  Eigen::Vector3d desired_force = force_error + force_acceleration + force_gravity;
+  RCLCPP_WARN(node_ptr_->get_logger(), "position_error: %f, %f, %f", position_error.x(),
+              position_error.y(), position_error.z());
+  RCLCPP_WARN(node_ptr_->get_logger(), "velocity_error: %f, %f, %f", velocity_error.x(),
+              velocity_error.y(), velocity_error.z());
+
+  // TODO: OPTIMIZE THIS ASSIGMENT
+  //
+  RCLCPP_WARN(node_ptr_->get_logger(), " STATE %f, %f, %f", _pos_state.x(), _pos_state.y(),
+              _pos_state.z());
+
+  Eigen::Matrix3d Kp = Eigen::Matrix3d::Zero();
+  Kp(0, 0)           = node_ptr_->get_parameter("trajectory_control.kp.x").as_double();
+  Kp(1, 1)           = node_ptr_->get_parameter("trajectory_control.kp.y").as_double();
+  Kp(2, 2)           = node_ptr_->get_parameter("trajectory_control.kp.z").as_double();
+
+  Eigen::Matrix3d Ki = Eigen::Matrix3d::Zero();
+  Ki(0, 0)           = node_ptr_->get_parameter("trajectory_control.ki.x").as_double();
+  Ki(1, 1)           = node_ptr_->get_parameter("trajectory_control.ki.y").as_double();
+  Ki(2, 2)           = node_ptr_->get_parameter("trajectory_control.ki.z").as_double();
+
+  Eigen::Matrix3d Kd = Eigen::Matrix3d::Zero();
+  Kd(0, 0)           = node_ptr_->get_parameter("trajectory_control.kd.x").as_double();
+  Kd(1, 1)           = node_ptr_->get_parameter("trajectory_control.kd.y").as_double();
+  Kd(2, 2)           = node_ptr_->get_parameter("trajectory_control.kd.z").as_double();
+
+  Eigen::Vector3d desired_force = Kp * position_error + Kd * velocity_error -
+                                  mass_ * gravitational_accel_ + mass_ * _acc_reference;
+
+  std::cout << "desired_force: " << desired_force.transpose() << std::endl;
+
   return desired_force;
 }
 
