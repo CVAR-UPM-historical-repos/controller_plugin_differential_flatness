@@ -44,10 +44,6 @@ void Plugin::ownInitialize() {
   flags_.state_received  = false;
   flags_.ref_received    = false;
 
-  pid_handler_ = std::make_shared<pid_controller::PIDController3D>();
-
-  tf_handler_ = std::make_shared<as2::tf::TfHandler>(node_ptr_);
-
   parameters_to_read_ = std::vector<std::string>(parameters_list_);
 
   reset();
@@ -103,30 +99,27 @@ rcl_interfaces::msg::SetParametersResult Plugin::parametersCallback(
 
 void Plugin::updateDFParameter(const std::string &_parameter_name,
                                const rclcpp::Parameter &_param) {
-  if (_parameter_name == "reset_integral") {
-    pid_handler_->setResetIntegralSaturationFlag(_param.get_value<bool>());
-  } else if (_parameter_name == "antiwindup_cte") {
-    pid_handler_->setAntiWindup(_param.get_value<double>());
-  } else if (_parameter_name == "alpha") {
-    pid_handler_->setAlpha(_param.get_value<double>());
+  if (_parameter_name == "antiwindup_cte") {
+    // TODO:: Substitute antiwindup
+    // pid_handler_->setAntiWindup(_param.get_value<double>());
   } else if (_parameter_name == "kp.x") {
-    pid_handler_->setGainKpX(_param.get_value<double>());
+    Kp_(0, 0) = node_ptr_->get_parameter("trajectory_control.kp.x").as_double();
   } else if (_parameter_name == "kp.y") {
-    pid_handler_->setGainKpY(_param.get_value<double>());
+    Kp_(1, 1) = node_ptr_->get_parameter("trajectory_control.kp.y").as_double();
   } else if (_parameter_name == "kp.z") {
-    pid_handler_->setGainKpZ(_param.get_value<double>());
+    Kp_(2, 2) = node_ptr_->get_parameter("trajectory_control.kp.z").as_double();
   } else if (_parameter_name == "ki.x") {
-    pid_handler_->setGainKiX(_param.get_value<double>());
+    Ki_(0, 0) = node_ptr_->get_parameter("trajectory_control.ki.x").as_double();
   } else if (_parameter_name == "ki.y") {
-    pid_handler_->setGainKiY(_param.get_value<double>());
+    Ki_(1, 1) = node_ptr_->get_parameter("trajectory_control.ki.y").as_double();
   } else if (_parameter_name == "ki.z") {
-    pid_handler_->setGainKiZ(_param.get_value<double>());
+    Ki_(2, 2) = node_ptr_->get_parameter("trajectory_control.ki.z").as_double();
   } else if (_parameter_name == "kd.x") {
-    pid_handler_->setGainKdX(_param.get_value<double>());
+    Kd_(0, 0) = node_ptr_->get_parameter("trajectory_control.kd.x").as_double();
   } else if (_parameter_name == "kd.y") {
-    pid_handler_->setGainKdY(_param.get_value<double>());
+    Kd_(1, 1) = node_ptr_->get_parameter("trajectory_control.kd.y").as_double();
   } else if (_parameter_name == "kd.z") {
-    pid_handler_->setGainKdZ(_param.get_value<double>());
+    Kd_(2, 2) = node_ptr_->get_parameter("trajectory_control.kd.z").as_double();
   } else if (_parameter_name == "roll_control.kp") {
     Kp_ang_mat_(0, 0) = _param.get_value<double>();
   } else if (_parameter_name == "pitch_control.kp") {
@@ -141,7 +134,7 @@ void Plugin::reset() {
   resetState();
   resetReferences();
   resetCommands();
-  pid_handler_->resetController();
+  // pid_handler_->resetController();
 }
 
 void Plugin::resetState() {
@@ -170,24 +163,9 @@ void Plugin::updateState(const geometry_msgs::msg::PoseStamped &pose_msg,
   uav_state_.position_header = pose_msg.header;
   uav_state_.position =
       Eigen::Vector3d(pose_msg.pose.position.x, pose_msg.pose.position.y, pose_msg.pose.position.z);
-
-  /* RCLCPP_INFO(node_ptr_->get_logger(), "Headers: [pose %s] [twist %s]",
-              pose_msg.header.frame_id.c_str(), twist_msg.header.frame_id.c_str()); */
-
-  // geometry_msgs::msg::TwistStamped twist_msg_flu = twist_msg;
-  geometry_msgs::msg::TwistStamped twist_msg_enu;
-
-  if (twist_msg.header.frame_id !=
-      as2::tf::generateTfName(node_ptr_->get_namespace(), enu_frame_id_)) {
-    RCLCPP_INFO(node_ptr_->get_logger(), "Transforming twist from %s to %s",
-                twist_msg.header.frame_id.c_str(), enu_frame_id_.c_str());
-    twist_msg_enu = tf_handler_->convert(twist_msg, enu_frame_id_);
-  } else {
-    twist_msg_enu = twist_msg;
-  }
-
-  uav_state_.velocity = Eigen::Vector3d(twist_msg_enu.twist.linear.x, twist_msg_enu.twist.linear.y,
-                                        twist_msg_enu.twist.linear.z);
+  uav_state_.velocity_header = twist_msg.header;
+  uav_state_.velocity =
+      Eigen::Vector3d(twist_msg.twist.linear.x, twist_msg.twist.linear.y, twist_msg.twist.linear.z);
 
   uav_state_.attitude_state =
       tf2::Quaternion(pose_msg.pose.orientation.x, pose_msg.pose.orientation.y,
@@ -310,54 +288,11 @@ Eigen::Vector3d Plugin::getForce(const double &_dt,
                                  const Eigen::Vector3d &_vel_reference,
                                  const Eigen::Vector3d &_acc_reference) {
   // Compute the error force contribution
-  // Eigen::Vector3d force_error =
-  //     pid_handler_->computeControl(_dt, _pos_state, _pos_reference, _vel_state, _vel_reference);
 
-  /* "trajectory_control.kp.x",
-  "trajectory_control.kp.y",
-  "trajectory_control.kp.z",
-  "trajectory_control.ki.x",
-  "trajectory_control.ki.y",
-  "trajectory_control.ki.z",
-  "trajectory_control.kd.x",
-  "trajectory_control.kd.y",
-  "trajectory_control.kd.z",
-  "trajectory_control.roll_control.kp",
-  "trajectory_control.pitch_control.kp",
-  "trajectory_control.yaw_control.kp", */
-
-  Eigen::Vector3d position_error = _pos_reference - _pos_state;
-  Eigen::Vector3d velocity_error = _vel_reference - _vel_state;
-
-  RCLCPP_WARN(node_ptr_->get_logger(), "position_error: %f, %f, %f", position_error.x(),
-              position_error.y(), position_error.z());
-  RCLCPP_WARN(node_ptr_->get_logger(), "velocity_error: %f, %f, %f", velocity_error.x(),
-              velocity_error.y(), velocity_error.z());
-
-  // TODO: OPTIMIZE THIS ASSIGMENT
-  //
-  RCLCPP_WARN(node_ptr_->get_logger(), " STATE %f, %f, %f", _pos_state.x(), _pos_state.y(),
-              _pos_state.z());
-
-  Eigen::Matrix3d Kp = Eigen::Matrix3d::Zero();
-  Kp(0, 0)           = node_ptr_->get_parameter("trajectory_control.kp.x").as_double();
-  Kp(1, 1)           = node_ptr_->get_parameter("trajectory_control.kp.y").as_double();
-  Kp(2, 2)           = node_ptr_->get_parameter("trajectory_control.kp.z").as_double();
-
-  Eigen::Matrix3d Ki = Eigen::Matrix3d::Zero();
-  Ki(0, 0)           = node_ptr_->get_parameter("trajectory_control.ki.x").as_double();
-  Ki(1, 1)           = node_ptr_->get_parameter("trajectory_control.ki.y").as_double();
-  Ki(2, 2)           = node_ptr_->get_parameter("trajectory_control.ki.z").as_double();
-
-  Eigen::Matrix3d Kd = Eigen::Matrix3d::Zero();
-  Kd(0, 0)           = node_ptr_->get_parameter("trajectory_control.kd.x").as_double();
-  Kd(1, 1)           = node_ptr_->get_parameter("trajectory_control.kd.y").as_double();
-  Kd(2, 2)           = node_ptr_->get_parameter("trajectory_control.kd.z").as_double();
-
-  Eigen::Vector3d desired_force = Kp * position_error + Kd * velocity_error -
-                                  mass_ * gravitational_accel_ + mass_ * _acc_reference;
-
-  std::cout << "desired_force: " << desired_force.transpose() << std::endl;
+  const Eigen::Vector3d position_error = _pos_reference - _pos_state;
+  const Eigen::Vector3d velocity_error = _vel_reference - _vel_state;
+  const Eigen::Vector3d desired_force  = Kp_ * position_error + Kd_ * velocity_error -
+                                        mass_ * gravitational_accel_ + mass_ * _acc_reference;
 
   return desired_force;
 }

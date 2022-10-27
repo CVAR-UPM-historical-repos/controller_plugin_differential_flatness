@@ -80,8 +80,6 @@ private:
 
   Control_flags flags_;
 
-  std::shared_ptr<as2::tf::TfHandler> tf_handler_;
-
   std::vector<std::string> parameters_list_ = {
       "mass",
       "trajectory_control.reset_integral",
@@ -102,6 +100,10 @@ private:
   };
 
   std::vector<std::string> parameters_to_read_;
+
+  Eigen::Matrix3d Kp_{Eigen::Matrix3d::Zero()};
+  Eigen::Matrix3d Kd_{Eigen::Matrix3d::Zero()};
+  Eigen::Matrix3d Ki_{Eigen::Matrix3d::Zero()};
 
   UAV_state uav_state_;
   UAV_reference control_ref_;
@@ -129,7 +131,7 @@ private:
   bool getOutput(geometry_msgs::msg::TwistStamped &twist_msg, as2_msgs::msg::Thrust &thrust_msg);
 
 private:
-  std::shared_ptr<pid_controller::PIDController3D> pid_handler_;
+  // std::shared_ptr<pid_controller::PIDController3D> pid_handler_;
 
   double mass_;
   Eigen::Vector3d gravitational_accel_ = Eigen::Vector3d(0, 0, -9.81);
