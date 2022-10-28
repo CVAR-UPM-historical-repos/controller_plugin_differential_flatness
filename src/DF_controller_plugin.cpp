@@ -288,6 +288,17 @@ Eigen::Vector3d Plugin::getForce(const double &_dt,
                                  const Eigen::Vector3d &_vel_reference,
                                  const Eigen::Vector3d &_acc_reference) {
   // Compute the error force contribution
+  //
+
+  Vector3d e_v = rdot - rdot_t;
+
+  accum_error_ += e_p;
+
+  for (short j = 0; j < 3; j++) {
+    float antiwindup_value = antiwindup_cte_ / traj_Ki_lin_mat.diagonal()[j];
+    accum_error_[j] = (accum_error_[j] > antiwindup_value) ? antiwindup_value : accum_error_[j];
+    accum_error_[j] = (accum_error_[j] < -antiwindup_value) ? -antiwindup_value : accum_error_[j];
+  }
 
   const Eigen::Vector3d position_error = _pos_reference - _pos_state;
   const Eigen::Vector3d velocity_error = _vel_reference - _vel_state;
