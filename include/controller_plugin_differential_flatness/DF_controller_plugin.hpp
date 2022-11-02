@@ -100,7 +100,7 @@ public:
   bool setMode(const as2_msgs::msg::ControlMode &mode_in,
                const as2_msgs::msg::ControlMode &mode_out) override;
 
-  bool computeOutput(const double &dt,
+  bool computeOutput(double dt,
                      geometry_msgs::msg::PoseStamped &pose,
                      geometry_msgs::msg::TwistStamped &twist,
                      as2_msgs::msg::Thrust &thrust) override;
@@ -108,7 +108,8 @@ public:
   bool updateParams(const std::vector<std::string> &_params_list) override;
   void reset() override;
 
-  // IMPORTANT: this is the frame_id of the desired twist
+  // IMPORTANT: this is the frame_id of the desired pose and twist
+  std::string getDesiredPoseFrameId() override  { return "odom"; }
   std::string getDesiredTwistFrameId() override { return "odom"; }
 
   rcl_interfaces::msg::SetParametersResult parametersCallback(

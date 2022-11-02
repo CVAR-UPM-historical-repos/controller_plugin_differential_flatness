@@ -193,7 +193,7 @@ bool Plugin::setMode(const as2_msgs::msg::ControlMode &in_mode,
   return true;
 };
 
-bool Plugin::computeOutput(const double &dt,
+bool Plugin::computeOutput(double dt,
                            geometry_msgs::msg::PoseStamped &pose,
                            geometry_msgs::msg::TwistStamped &twist,
                            as2_msgs::msg::Thrust &thrust) {
