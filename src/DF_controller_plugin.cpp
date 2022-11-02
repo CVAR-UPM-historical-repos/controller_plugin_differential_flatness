@@ -35,6 +35,7 @@
  ********************************************************************************/
 
 #include "DF_controller_plugin.hpp"
+#include <Eigen/src/Core/GlobalFunctions.h>
 #include <as2_core/utils/tf_utils.hpp>
 
 namespace controller_plugin_differential_flatness {
@@ -100,26 +101,25 @@ rcl_interfaces::msg::SetParametersResult Plugin::parametersCallback(
 void Plugin::updateDFParameter(const std::string &_parameter_name,
                                const rclcpp::Parameter &_param) {
   if (_parameter_name == "antiwindup_cte") {
-    // TODO:: Substitute antiwindup
-    // pid_handler_->setAntiWindup(_param.get_value<double>());
+    antiwindup_cte_ = _param.get_value<double>();
   } else if (_parameter_name == "kp.x") {
-    Kp_(0, 0) = node_ptr_->get_parameter("trajectory_control.kp.x").as_double();
+    Kp_(0, 0) = _param.get_value<double>();
   } else if (_parameter_name == "kp.y") {
-    Kp_(1, 1) = node_ptr_->get_parameter("trajectory_control.kp.y").as_double();
+    Kp_(1, 1) = _param.get_value<double>();
   } else if (_parameter_name == "kp.z") {
-    Kp_(2, 2) = node_ptr_->get_parameter("trajectory_control.kp.z").as_double();
+    Kp_(2, 2) = _param.get_value<double>();
   } else if (_parameter_name == "ki.x") {
-    Ki_(0, 0) = node_ptr_->get_parameter("trajectory_control.ki.x").as_double();
+    Ki_(0, 0) = _param.get_value<double>();
   } else if (_parameter_name == "ki.y") {
-    Ki_(1, 1) = node_ptr_->get_parameter("trajectory_control.ki.y").as_double();
+    Ki_(1, 1) = _param.get_value<double>();
   } else if (_parameter_name == "ki.z") {
-    Ki_(2, 2) = node_ptr_->get_parameter("trajectory_control.ki.z").as_double();
+    Ki_(2, 2) = _param.get_value<double>();
   } else if (_parameter_name == "kd.x") {
-    Kd_(0, 0) = node_ptr_->get_parameter("trajectory_control.kd.x").as_double();
+    Kd_(0, 0) = _param.get_value<double>();
   } else if (_parameter_name == "kd.y") {
-    Kd_(1, 1) = node_ptr_->get_parameter("trajectory_control.kd.y").as_double();
+    Kd_(1, 1) = _param.get_value<double>();
   } else if (_parameter_name == "kd.z") {
-    Kd_(2, 2) = node_ptr_->get_parameter("trajectory_control.kd.z").as_double();
+    Kd_(2, 2) = _param.get_value<double>();
   } else if (_parameter_name == "roll_control.kp") {
     Kp_ang_mat_(0, 0) = _param.get_value<double>();
   } else if (_parameter_name == "pitch_control.kp") {
@@ -134,7 +134,6 @@ void Plugin::reset() {
   resetState();
   resetReferences();
   resetCommands();
-  // pid_handler_->resetController();
 }
 
 void Plugin::resetState() {
@@ -155,6 +154,7 @@ void Plugin::resetReferences() {
 void Plugin::resetCommands() {
   control_command_.PQR    = Eigen::Vector3d::Zero();
   control_command_.thrust = 0.0;
+  accum_pos_error_        = Eigen::Vector3d::Zero();
   return;
 }
 
@@ -288,22 +288,20 @@ Eigen::Vector3d Plugin::getForce(const double &_dt,
                                  const Eigen::Vector3d &_vel_reference,
                                  const Eigen::Vector3d &_acc_reference) {
   // Compute the error force contribution
-  //
-
-  Vector3d e_v = rdot - rdot_t;
-
-  accum_error_ += e_p;
-
-  for (short j = 0; j < 3; j++) {
-    float antiwindup_value = antiwindup_cte_ / traj_Ki_lin_mat.diagonal()[j];
-    accum_error_[j] = (accum_error_[j] > antiwindup_value) ? antiwindup_value : accum_error_[j];
-    accum_error_[j] = (accum_error_[j] < -antiwindup_value) ? -antiwindup_value : accum_error_[j];
-  }
 
   const Eigen::Vector3d position_error = _pos_reference - _pos_state;
   const Eigen::Vector3d velocity_error = _vel_reference - _vel_state;
-  const Eigen::Vector3d desired_force  = Kp_ * position_error + Kd_ * velocity_error -
-                                        mass_ * gravitational_accel_ + mass_ * _acc_reference;
+
+  accum_pos_error_ += position_error * _dt;
+
+  for (uint8_t j = 0; j < 3; j++) {
+    double antiwindup_value = antiwindup_cte_ / Ki_.diagonal()[j];
+    accum_pos_error_[j]     = std::clamp(accum_pos_error_[j], -antiwindup_value, antiwindup_value);
+  }
+
+  const Eigen::Vector3d desired_force = Kp_ * position_error + Kd_ * velocity_error +
+                                        Ki_ * accum_pos_error_ + mass_ * gravitational_accel_ +
+                                        mass_ * _acc_reference;
 
   return desired_force;
 }

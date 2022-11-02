@@ -105,6 +105,9 @@ private:
   Eigen::Matrix3d Kd_{Eigen::Matrix3d::Zero()};
   Eigen::Matrix3d Ki_{Eigen::Matrix3d::Zero()};
 
+  Eigen::Vector3d accum_pos_error_{Eigen::Vector3d::Zero()};
+  double antiwindup_cte_ = 0.0;
+
   UAV_state uav_state_;
   UAV_reference control_ref_;
   Acro_command control_command_;
@@ -131,8 +134,6 @@ private:
   bool getOutput(geometry_msgs::msg::TwistStamped &twist_msg, as2_msgs::msg::Thrust &thrust_msg);
 
 private:
-  // std::shared_ptr<pid_controller::PIDController3D> pid_handler_;
-
   double mass_;
   Eigen::Vector3d gravitational_accel_ = Eigen::Vector3d(0, 0, -9.81);
   Eigen::Matrix3d Kp_ang_mat_          = Eigen::Matrix3d::Zero();
