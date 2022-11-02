@@ -108,6 +108,9 @@ public:
   bool updateParams(const std::vector<std::string> &_params_list) override;
   void reset() override;
 
+  // IMPORTANT: this is the frame_id of the desired twist
+  std::string getDesiredTwistFrameId() override { return "odom"; }
+
   rcl_interfaces::msg::SetParametersResult parametersCallback(
       const std::vector<rclcpp::Parameter> &parameters);
 
