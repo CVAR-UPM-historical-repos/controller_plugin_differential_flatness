@@ -20,7 +20,6 @@
   <depend>as2_msgs</depend>
   <depend>pluginlib</depend>
   <depend>controller_plugin_base</depend>
-  <depend>pid_controller</depend>
   
   <export>
     <build_type>ament_cmake</build_type>

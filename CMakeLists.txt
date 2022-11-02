@@ -14,6 +14,9 @@ endif()
 
 #set fPIC to ON by default
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+#opposite to fPIC is fPIE
+
+
 
 # find dependencies
 set(PROJECT_DEPENDENCIES
@@ -27,7 +30,6 @@ set(PROJECT_DEPENDENCIES
   Eigen3
   pluginlib
   controller_plugin_base
-  pid_controller
 )
 
 foreach(DEPENDENCY ${PROJECT_DEPENDENCIES})

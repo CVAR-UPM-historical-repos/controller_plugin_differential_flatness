@@ -2,7 +2,6 @@
   ros__parameters:
     mass: 0.82
     trajectory_control:
-      reset_integral: false
       antiwindup_cte: 1.0
       alpha: 0.1
       kp:
@@ -24,30 +23,28 @@
       yaw_control:
         kp: 2.0
 
-
-
-/**:
-  ros__parameters:
-    mass: 0.82
-    trajectory_control:
-      reset_integral: false
-      antiwindup_cte: 1.0
-      alpha: 0.1
-      kp:
-        x: 6.0
-        y: 6.0
-        z: 6.0
-      ki:
-        x: 0.5
-        y: 0.5
-        z: 6.5
-      kd:
-        x: 0.015
-        y: 0.015
-        z: 0.03
-      roll_control:
-        kp: 5.5
-      pitch_control:
-        kp: 5.5
-      yaw_control:
-        kp: 2.0
+# /**:
+#   ros__parameters:
+#     mass: 0.82
+#     trajectory_control:
+#       reset_integral: false
+#       antiwindup_cte: 1.0
+#       alpha: 0.1
+#       kp:
+#         x: 6.0
+#         y: 6.0
+#         z: 6.0
+#       ki:
+#         x: 0.5
+#         y: 0.5
+#         z: 6.5
+#       kd:
+#         x: 0.015
+#         y: 0.015
+#         z: 0.03
+#       roll_control:
+#         kp: 5.5
+#       pitch_control:
+#         kp: 5.5
+#       yaw_control:
+#         kp: 2.0
