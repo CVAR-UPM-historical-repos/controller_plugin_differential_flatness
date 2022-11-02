@@ -42,6 +42,8 @@ namespace controller_plugin_differential_flatness {
 
 void Plugin::ownInitialize() {
   reset();
+  flu_frame_id_ = as2::tf::generateTfName(node_ptr_, flu_frame_id_);
+  enu_frame_id_ = as2::tf::generateTfName(node_ptr_, enu_frame_id_);
   return;
 };
 
@@ -109,7 +111,7 @@ void Plugin::updateDFParameter(std::string _parameter_name, const rclcpp::Parame
   } else if (_parameter_name == "yaw_control.kp") {
     Kp_ang_mat_(2, 2) = _param.get_value<double>();
   }
-  flags_.parameters_read = checkParamList(_parameter_name, parameters_to_read_);
+  flags_.parameters_read = checkParamList(_param.get_name(), parameters_to_read_);
   return;
 }
 
@@ -140,10 +142,8 @@ void Plugin::resetCommands() {
 
 void Plugin::updateState(const geometry_msgs::msg::PoseStamped &pose_msg,
                          const geometry_msgs::msg::TwistStamped &twist_msg) {
-  uav_state_.position_header = pose_msg.header;
   uav_state_.position =
       Eigen::Vector3d(pose_msg.pose.position.x, pose_msg.pose.position.y, pose_msg.pose.position.z);
-  uav_state_.velocity_header = twist_msg.header;
   uav_state_.velocity =
       Eigen::Vector3d(twist_msg.twist.linear.x, twist_msg.twist.linear.y, twist_msg.twist.linear.z);
 

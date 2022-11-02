@@ -17,9 +17,7 @@
 namespace controller_plugin_differential_flatness {
 
 struct UAV_state {
-  std_msgs::msg::Header position_header = std_msgs::msg::Header();
   Eigen::Vector3d position              = Eigen::Vector3d::Zero();
-  std_msgs::msg::Header velocity_header = std_msgs::msg::Header();
   Eigen::Vector3d velocity              = Eigen::Vector3d::Zero();
   tf2::Quaternion attitude_state        = tf2::Quaternion::getIdentity();
 };
@@ -61,14 +59,13 @@ class Plugin : public controller_plugin_base::ControllerBase {
   double mass_;
   double antiwindup_cte_ = 0.0;
 
-  const std::string enu_frame_id_ = "odom";
-  const std::string flu_frame_id_ = "base_link";
+  std::string enu_frame_id_ = "odom";
+  std::string flu_frame_id_ = "base_link";
 
   const Eigen::Vector3d gravitational_accel_ = Eigen::Vector3d(0, 0, -9.81);
 
   const std::vector<std::string> parameters_list_ = {
       "mass",
-      "trajectory_control.reset_integral",
       "trajectory_control.antiwindup_cte",
       "trajectory_control.alpha",
       "trajectory_control.kp.x",
@@ -109,8 +106,8 @@ public:
   void reset() override;
 
   // IMPORTANT: this is the frame_id of the desired pose and twist
-  std::string getDesiredPoseFrameId() override  { return "odom"; }
-  std::string getDesiredTwistFrameId() override { return "odom"; }
+  std::string getDesiredPoseFrameId() override  { return enu_frame_id_; }
+  std::string getDesiredTwistFrameId() override { return enu_frame_id_; }
 
   rcl_interfaces::msg::SetParametersResult parametersCallback(
       const std::vector<rclcpp::Parameter> &parameters);
