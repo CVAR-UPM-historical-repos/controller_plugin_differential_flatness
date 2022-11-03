@@ -42,8 +42,6 @@ namespace controller_plugin_differential_flatness {
 
 void Plugin::ownInitialize() {
   reset();
-  flu_frame_id_ = as2::tf::generateTfName(node_ptr_, flu_frame_id_);
-  enu_frame_id_ = as2::tf::generateTfName(node_ptr_, enu_frame_id_);
   return;
 };
 
@@ -277,7 +275,7 @@ Eigen::Vector3d Plugin::getForce(const double &_dt,
   }
 
   const Eigen::Vector3d desired_force = Kp_ * position_error + Kd_ * velocity_error +
-                                        Ki_ * accum_pos_error_ + mass_ * gravitational_accel_ +
+                                        Ki_ * accum_pos_error_ - mass_ * gravitational_accel_ +
                                         mass_ * _acc_reference;
 
   return std::move(desired_force);  // use std::move to avoid copy (force RVO)
@@ -330,13 +328,13 @@ Acro_command Plugin::computeTrajectoryControl(const double &_dt,
 bool Plugin::getOutput(geometry_msgs::msg::TwistStamped &twist_msg,
                        as2_msgs::msg::Thrust &thrust_msg) {
   twist_msg.header.stamp    = node_ptr_->now();
-  twist_msg.header.frame_id = flu_frame_id_;
+  twist_msg.header.frame_id = odom_frame_id_;
   twist_msg.twist.angular.x = control_command_.PQR.x();
   twist_msg.twist.angular.y = control_command_.PQR.y();
   twist_msg.twist.angular.z = control_command_.PQR.z();
 
   thrust_msg.header.stamp    = node_ptr_->now();
-  thrust_msg.header.frame_id = flu_frame_id_;
+  thrust_msg.header.frame_id = base_link_frame_id_;
   thrust_msg.thrust          = control_command_.thrust;
   return true;
 };
