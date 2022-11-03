@@ -41,6 +41,8 @@
 namespace controller_plugin_differential_flatness {
 
 void Plugin::ownInitialize() {
+  odom_frame_id_ = as2::tf::generateTfName(node_ptr_, odom_frame_id_);
+  base_link_frame_id_ = as2::tf::generateTfName(node_ptr_, base_link_frame_id_);
   reset();
   return;
 };
@@ -114,8 +116,8 @@ void Plugin::updateDFParameter(std::string _parameter_name, const rclcpp::Parame
 }
 
 void Plugin::reset() {
-  resetState();
   resetReferences();
+  resetState();
   resetCommands();
 }
 
@@ -186,8 +188,6 @@ bool Plugin::setMode(const as2_msgs::msg::ControlMode &in_mode,
   }
 
   control_mode_out_ = out_mode;
-  reset();
-
   return true;
 };
 
@@ -237,14 +237,13 @@ bool Plugin::computeOutput(double dt,
   }
 
   switch (control_mode_in_.control_mode) {
-    case as2_msgs::msg::ControlMode::TRAJECTORY: {
-      // RCLCPP_INFO(node_ptr_->get_logger(), "TRAJECTORY, yaw angle %f", control_ref_.yaw.x());
+    case as2_msgs::msg::ControlMode::HOVER:
+    case as2_msgs::msg::ControlMode::TRAJECTORY:
       control_command_ = computeTrajectoryControl(dt, uav_state_.position, uav_state_.velocity,
                                                   uav_state_.attitude_state, control_ref_.position,
                                                   control_ref_.velocity, control_ref_.acceleration,
                                                   control_ref_.yaw.x());
       break;
-    }
     default:
       auto &clk = *node_ptr_->get_clock();
       RCLCPP_ERROR_THROTTLE(node_ptr_->get_logger(), clk, 5000, "Unknown control mode");
@@ -328,7 +327,7 @@ Acro_command Plugin::computeTrajectoryControl(const double &_dt,
 bool Plugin::getOutput(geometry_msgs::msg::TwistStamped &twist_msg,
                        as2_msgs::msg::Thrust &thrust_msg) {
   twist_msg.header.stamp    = node_ptr_->now();
-  twist_msg.header.frame_id = odom_frame_id_;
+  twist_msg.header.frame_id = base_link_frame_id_;
   twist_msg.twist.angular.x = control_command_.PQR.x();
   twist_msg.twist.angular.y = control_command_.PQR.y();
   twist_msg.twist.angular.z = control_command_.PQR.z();

@@ -59,8 +59,8 @@ class Plugin : public controller_plugin_base::ControllerBase {
   double mass_;
   double antiwindup_cte_ = 0.0;
 
-  const std::string odom_frame_id_      = "odom";
-  const std::string base_link_frame_id_ = "base_link";
+  std::string odom_frame_id_      = "odom";
+  std::string base_link_frame_id_ = "base_link";
 
   const Eigen::Vector3d gravitational_accel_ = Eigen::Vector3d(0, 0, -9.81);
 
