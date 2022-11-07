@@ -1,52 +1,50 @@
-#  TODO: FIX This all node behaviour -> check if it's a Foxy issue
-# /**/differential_flatness_controller: 
 /**:
   ros__parameters:
-    proportional_limitation : true
-    mass: 0.75
-    antiwindup_cte : 5.0
-    alpha: 0.1
-    trajectory_following:
-      position_Kp:
+    mass: 0.82
+    trajectory_control:
+      antiwindup_cte: 1.0
+      alpha: 0.1
+      kp:
         x: 6.0
         y: 6.0
         z: 6.0
-      position_Ki:
-        x: 0.05
-        y: 0.05
+      ki:
+        x: 0.005
+        y: 0.005
         z: 0.065
-      position_Kd:
-        x: 2.5
-        y: 2.5
+      kd:
+        x: 1.5
+        y: 1.5
         z: 3.0
-    speed_following:
-      speed_Kp: 
-        x: 2.8
-        y: 2.8
-        z: 4.0
-      speed_Kd: 
-        x: 0.008
-        y: 0.008
-        z: 0.0
-      speed_Ki:
-        x: 1.6
-        y: 1.6
-        z: 0.1
-    position_following:
-      position_Kp: 
-        x: 2.0
-        y: 2.0
-        z: 2.5
-      position_Kd: 
-        x: 0.0
-        y: 0.0
-        z: 0.0
-      position_Ki:
-        x: 0.01
-        y: 0.01
-        z: 0.11
-    angular_speed_controller:
-      angular_gain:
-        x: 5.5
-        y: 5.5
-        z: 2.0 
+      roll_control:
+        kp: 5.5
+      pitch_control:
+        kp: 5.5
+      yaw_control:
+        kp: 2.0
+
+# /**:
+#   ros__parameters:
+#     mass: 0.82
+#     trajectory_control:
+#       reset_integral: false
+#       antiwindup_cte: 1.0
+#       alpha: 0.1
+#       kp:
+#         x: 6.0
+#         y: 6.0
+#         z: 6.0
+#       ki:
+#         x: 0.5
+#         y: 0.5
+#         z: 6.5
+#       kd:
+#         x: 0.015
+#         y: 0.015
+#         z: 0.03
+#       roll_control:
+#         kp: 5.5
+#       pitch_control:
+#         kp: 5.5
+#       yaw_control:
+#         kp: 2.0
