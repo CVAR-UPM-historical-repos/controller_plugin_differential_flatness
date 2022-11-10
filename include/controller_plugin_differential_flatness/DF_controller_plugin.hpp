@@ -45,6 +45,7 @@ class Plugin : public controller_plugin_base::ControllerBase {
   UAV_reference control_ref_;
   Acro_command control_command_;
   Control_flags flags_;
+  bool hover_flag_ = false;
 
   as2_msgs::msg::ControlMode control_mode_in_;
   as2_msgs::msg::ControlMode control_mode_out_;
