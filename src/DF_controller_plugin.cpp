@@ -41,7 +41,7 @@
 namespace controller_plugin_differential_flatness {
 
 void Plugin::ownInitialize() {
-  odom_frame_id_ = as2::tf::generateTfName(node_ptr_, odom_frame_id_);
+  odom_frame_id_      = as2::tf::generateTfName(node_ptr_, odom_frame_id_);
   base_link_frame_id_ = as2::tf::generateTfName(node_ptr_, base_link_frame_id_);
   reset();
   return;
@@ -142,6 +142,15 @@ void Plugin::resetCommands() {
 
 void Plugin::updateState(const geometry_msgs::msg::PoseStamped &pose_msg,
                          const geometry_msgs::msg::TwistStamped &twist_msg) {
+  if (pose_msg.header.frame_id != odom_frame_id_ && twist_msg.header.frame_id != odom_frame_id_) {
+    RCLCPP_ERROR(node_ptr_->get_logger(), "Pose and Twist frame_id are not desired ones");
+    RCLCPP_ERROR(node_ptr_->get_logger(), "Recived: %s, %s", pose_msg.header.frame_id.c_str(),
+                 twist_msg.header.frame_id.c_str());
+    RCLCPP_ERROR(node_ptr_->get_logger(), "Desired: %s, %s", odom_frame_id_.c_str(),
+                 odom_frame_id_.c_str());
+    return;
+  }
+
   uav_state_.position =
       Eigen::Vector3d(pose_msg.pose.position.x, pose_msg.pose.position.y, pose_msg.pose.position.z);
   uav_state_.velocity =
@@ -150,6 +159,12 @@ void Plugin::updateState(const geometry_msgs::msg::PoseStamped &pose_msg,
   uav_state_.attitude_state =
       tf2::Quaternion(pose_msg.pose.orientation.x, pose_msg.pose.orientation.y,
                       pose_msg.pose.orientation.z, pose_msg.pose.orientation.w);
+
+  if (hover_flag_) {
+    resetReferences();
+    flags_.ref_received = true;
+    hover_flag_         = false;
+  }
 
   flags_.state_received = true;
   return;
@@ -177,15 +192,22 @@ void Plugin::updateReference(const trajectory_msgs::msg::JointTrajectoryPoint &t
 
 bool Plugin::setMode(const as2_msgs::msg::ControlMode &in_mode,
                      const as2_msgs::msg::ControlMode &out_mode) {
+  if (!flags_.parameters_read) {
+    RCLCPP_WARN(node_ptr_->get_logger(), "Plugin parameters not read yet, can not set mode");
+    return false;
+  }
+
   if (in_mode.control_mode == as2_msgs::msg::ControlMode::HOVER) {
     control_mode_in_.control_mode    = in_mode.control_mode;
     control_mode_in_.yaw_mode        = as2_msgs::msg::ControlMode::YAW_ANGLE;
     control_mode_in_.reference_frame = as2_msgs::msg::ControlMode::LOCAL_ENU_FRAME;
+    hover_flag_                      = true;
   } else {
-    flags_.ref_received   = false;
-    flags_.state_received = false;
-    control_mode_in_      = in_mode;
+    control_mode_in_ = in_mode;
   }
+
+  flags_.ref_received   = false;
+  flags_.state_received = false;
 
   control_mode_out_ = out_mode;
   return true;
