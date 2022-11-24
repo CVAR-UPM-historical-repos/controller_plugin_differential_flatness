@@ -128,8 +128,7 @@ void Plugin::resetReferences() {
   control_ref_.velocity     = Eigen::Vector3d::Zero();
   control_ref_.acceleration = Eigen::Vector3d::Zero();
 
-  control_ref_.yaw =
-      Eigen::Vector3d(as2::frame::getYawFromQuaternion(uav_state_.attitude_state), 0, 0);
+  control_ref_.yaw = as2::frame::getYawFromQuaternion(uav_state_.attitude_state);
   return;
 }
 
@@ -170,21 +169,21 @@ void Plugin::updateState(const geometry_msgs::msg::PoseStamped &pose_msg,
   return;
 };
 
-void Plugin::updateReference(const trajectory_msgs::msg::JointTrajectoryPoint &traj_msg) {
+void Plugin::updateReference(const as2_msgs::msg::TrajectoryPoint &traj_msg) {
   if (control_mode_in_.control_mode != as2_msgs::msg::ControlMode::TRAJECTORY) {
     return;
   }
 
-  control_ref_.position =
-      Eigen::Vector3d(traj_msg.positions[0], traj_msg.positions[1], traj_msg.positions[2]);
+  control_ref_.position = Eigen::Vector3d(traj_msg.position.x, traj_msg.position.y,
+                                          traj_msg.position.z);
 
-  control_ref_.velocity =
-      Eigen::Vector3d(traj_msg.velocities[0], traj_msg.velocities[1], traj_msg.velocities[2]);
+  control_ref_.velocity = Eigen::Vector3d(traj_msg.twist.x, traj_msg.twist.y,
+                                          traj_msg.twist.z);
 
-  control_ref_.acceleration = Eigen::Vector3d(traj_msg.accelerations[0], traj_msg.accelerations[1],
-                                              traj_msg.accelerations[2]);
-  control_ref_.yaw =
-      Eigen::Vector3d(traj_msg.positions[3], traj_msg.velocities[3], traj_msg.accelerations[3]);
+  control_ref_.acceleration = Eigen::Vector3d(traj_msg.acceleration.x, traj_msg.acceleration.y,
+                                              traj_msg.acceleration.z);
+
+  control_ref_.yaw = traj_msg.yaw_angle;
 
   flags_.ref_received = true;
   return;
@@ -243,14 +242,6 @@ bool Plugin::computeOutput(double dt,
     case as2_msgs::msg::ControlMode::YAW_ANGLE: {
       break;
     }
-    case as2_msgs::msg::ControlMode::YAW_SPEED: {
-      // RCLCPP_WARN(node_ptr_->get_logger(), "Yaw speed adding SPEED VEL");
-      tf2::Matrix3x3 m(uav_state_.attitude_state);
-      double roll, pitch, yaw;
-      m.getRPY(roll, pitch, yaw);
-      control_ref_.yaw.x() = yaw + control_ref_.yaw.y() * dt;
-      break;
-    }
     default:
       auto &clk = *node_ptr_->get_clock();
       RCLCPP_ERROR_THROTTLE(node_ptr_->get_logger(), clk, 5000, "Unknown yaw mode");
@@ -264,7 +255,7 @@ bool Plugin::computeOutput(double dt,
       control_command_ = computeTrajectoryControl(dt, uav_state_.position, uav_state_.velocity,
                                                   uav_state_.attitude_state, control_ref_.position,
                                                   control_ref_.velocity, control_ref_.acceleration,
-                                                  control_ref_.yaw.x());
+                                                  control_ref_.yaw);
       break;
     default:
       auto &clk = *node_ptr_->get_clock();
