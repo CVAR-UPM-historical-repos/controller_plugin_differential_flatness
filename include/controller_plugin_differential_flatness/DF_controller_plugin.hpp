@@ -26,7 +26,7 @@ struct UAV_reference {
   Eigen::Vector3d position     = Eigen::Vector3d::Zero();
   Eigen::Vector3d velocity     = Eigen::Vector3d::Zero();
   Eigen::Vector3d acceleration = Eigen::Vector3d::Zero();
-  Eigen::Vector3d yaw          = Eigen::Vector3d::Zero();
+  double yaw                   = 0.0;
 };
 
 struct Acro_command {
@@ -93,7 +93,7 @@ public:
   void updateState(const geometry_msgs::msg::PoseStamped &pose_msg,
                    const geometry_msgs::msg::TwistStamped &twist_msg) override;
 
-  void updateReference(const trajectory_msgs::msg::JointTrajectoryPoint &ref) override;
+  void updateReference(const as2_msgs::msg::TrajectoryPoint &ref) override;
 
   bool setMode(const as2_msgs::msg::ControlMode &mode_in,
                const as2_msgs::msg::ControlMode &mode_out) override;
